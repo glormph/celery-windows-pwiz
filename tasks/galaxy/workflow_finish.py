@@ -5,9 +5,6 @@ from tasks.galaxy.util import get_galaxy_instance
 
 TESTING_NO_CLEANUP = True
 
-GALAXY_URL = '130.229.49.225'
-APIKEY = '68fd79c85e3bd4887de950f1bf5b679a'  # jorrit on stage
-
 
 app = Celery('galaxy', backend='amqp')
 app.conf.update(
