@@ -1,0 +1,15 @@
+BROKER_URL = 'yourserver.yourdomain.com'
+BROKER_PORT = 5672
+CELERY_TASK_SERIALIZER = 'json'
+
+# queue names
+QUEUE_GALAXY_WORKFLOW = 'galaxy-workflows'
+QUEUE_GALAXY_TOOLS = 'galaxy-tools'
+QUEUE_GALAXY_RESULT_TRANSFER = 'galaxy-downloads'
+
+
+#GALAXY_URL = 'yourgalaxyinstance.yourdomain.com'
+
+APIKEYS = {
+    'username': 'apikey',
+}

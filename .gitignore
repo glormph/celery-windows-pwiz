@@ -1,0 +1,4 @@
+*.swp
+*.pyc
+tasks/config.py
+.ropeproject/
