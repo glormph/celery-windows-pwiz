@@ -180,22 +180,24 @@ def get_param_map(module, inputstore):
                 # no json obj, no runtime values
                 continue
             if type(input_val) == dict:
-                # FIXME do_dict_stuff()
-                if dict in [type(x) for x in input_val.values()]:
-                    # complex input with repeats/conditional
-                    for subname, subval in input_val.items():
-                        composed_name = '{}|{}'.format(input_name, subname)
-                        if is_runtime_param(subval, composed_name, modstep):
-                            fill_runtime_param(parammap, inputstore,
-                                               composed_name, modstep,
-                                               input_name)
-                else:
-                    # simple runtime value check and fill with inputstore value
-                    # FIXME do_runtime_stuff()
-                    if is_runtime_param(input_val, input_name, modstep):
-                        fill_runtime_param(parammap, inputstore, input_name,
-                                           modstep)
+                check_and_fill_runtime_param(input_val, input_name, modstep,
+                                             parammap, inputstore)
     return parammap
+
+
+def check_and_fill_runtime_param(input_val, name, modstep, parammap,
+                                 inputstore):
+    if dict in [type(x) for x in input_val.values()]:
+        # complex input with repeats/conditional
+        for subname, subval in input_val.items():
+            composed_name = '{}|{}'.format(name, subname)
+            if is_runtime_param(subval, composed_name, modstep):
+                fill_runtime_param(parammap, inputstore, composed_name,
+                                   modstep, name)
+    else:
+        # simple runtime value check and fill with inputstore value
+        if is_runtime_param(input_val, name, modstep):
+            fill_runtime_param(parammap, inputstore, name, modstep)
 
 
 def get_collection_id_in_his(his_contents, name, gi):
