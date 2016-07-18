@@ -10,13 +10,7 @@ from tasks.galaxy.util import get_galaxy_instance
 
 TESTING_FLAG = True
 
-
 # worker module for running workflow mods
-# FIXME we should really use retry on the tasks, in a try block?
-# or use acks_late would be good bc then we can interrupt the worker mid-task
-# question is if interrupt would be used at all or not
-# acks_late while debugging, seems like it doesnt work when task crashes,
-# only worker crash?
 
 app = Celery('galaxy_workflows', backend='amqp')
 app.conf.update(
@@ -31,32 +25,39 @@ if TESTING_FLAG:
     )
 
 
-@app.task(queue=config.QUEUE_GALAXY_WORKFLOW)
-def reuse_history(inputstore):
+@app.task(queue=config.QUEUE_GALAXY_WORKFLOW, bind=True)
+def reuse_history(self, inputstore):
     input_labels = inputstore['wf']['rerun_inputs']
     print('Checking reusable other history for datasets for '
           'input steps {}'.format(input_labels))
     gi = get_galaxy_instance(inputstore)
-    update_inputstore_from_history(gi, inputstore['datasets'], input_labels,
-                                   inputstore['history'])
-    history = gi.histories.create_history(name=inputstore['searchname'])
+    try:
+        update_inputstore_from_history(gi, inputstore['datasets'],
+                                       input_labels, inputstore['history'])
+        history = gi.histories.create_history(name=inputstore['searchname'])
+    except:
+        self.retry(countdown=60)
     inputstore['history'] = history['id']
     return inputstore
 
 
-@app.task(queue=config.QUEUE_GALAXY_WORKFLOW)
-def run_workflow_module(inputstore, module_id):
+@app.task(queue=config.QUEUE_GALAXY_WORKFLOW, bind=True)
+def run_workflow_module(self, inputstore, module_id):
     print('Getting workflow module {}'.format(module_id))
     gi = get_galaxy_instance(inputstore)
     try:
         module = gi.workflows.show_workflow(module_id)
     except:
-        raise  # FIXME retry!
+        self.retry(countdown=60)
     input_labels = get_input_labels(module)
     while not check_inputs_ready(inputstore['datasets'], input_labels,
                                  module['name']):
-        update_inputstore_from_history(gi, inputstore['datasets'],
-                                       input_labels, inputstore['history'])
+        try:
+            update_inputstore_from_history(gi, inputstore['datasets'],
+                                           input_labels,
+                                           inputstore['history'])
+        except:
+            self.retry(countdown=60)
         sleep(10)
     mod_inputs = get_input_map(module, inputstore['datasets'])
     mod_params = get_param_map(module, inputstore)
@@ -67,7 +68,7 @@ def run_workflow_module(inputstore, module_id):
                                      params=mod_params,
                                      history_id=inputstore['history'])
     except:
-        pass  # FIXME
+        self.retry(countdown=60)
     print('Workflow invoked')
     return inputstore
 
@@ -203,23 +204,29 @@ def fill_runtime_param(parammap, inputstore, name, step, storename=False):
         parammap[step['tool_id']] = {'param': name, 'value': paramval}
 
 
-@app.task(queue=config.QUEUE_GALAXY_WORKFLOW)
-def check_dsets_ok(inputstore):
+@app.task(queue=config.QUEUE_GALAXY_WORKFLOW, bind=True)
+def check_dsets_ok(self, inputstore):
     # FIXME have to check datasets are ok, no history clean bc it doesnt exist
     # yet
     print('Not currently checking dsets are ok... please implement me!')
     return inputstore
 
 
-@app.task(queue=config.QUEUE_GALAXY_WORKFLOW)
-def prepare_run(inputstore):
+@app.task(queue=config.QUEUE_GALAXY_WORKFLOW, bind=True)
+def prepare_run(self, inputstore):
     gi = get_galaxy_instance(inputstore)
-    check_modules(gi, inputstore['modules'])
     print('Creating new history for: {}'.format(inputstore['searchname']))
-    history = gi.histories.create_history(name=inputstore['searchname'])
+    try:
+        check_modules(gi, inputstore['modules'])
+        history = gi.histories.create_history(name=inputstore['searchname'])
+    except:
+        self.retry(countdown=60)
     inputstore['history'] = history['id']
     if inputstore['rerun_his'] is None:
-        run_prep_tools(gi, inputstore)
+        try:
+            run_prep_tools(gi, inputstore)
+        except:
+            self.retry(countdown=60)
     return inputstore
 
 

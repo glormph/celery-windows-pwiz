@@ -24,21 +24,28 @@ def cleanup(inputstore):
     # another history
 
 
-@app.task(queue=config.QUEUE_GALAXY_WORKFLOW)
-def zip_dataset(inputstore):
+@app.task(queue=config.QUEUE_GALAXY_WORKFLOW, bind=True)
+def zip_dataset(self, inputstore):
     """Tar.gz creation of all collection datasets in inputstore which are
     defined as output_dset"""
     # FIXME add MD5 check?
     gi = get_galaxy_instance(inputstore)
     # FIXME check package tool and fix for collections
-    ziptool = gi.tools.get_tools(tool_id='package_dataset')[0]
+    try:
+        ziptool = gi.tools.get_tools(tool_id='package_dataset')[0]
+    except:
+        self.retry(countdown=60)
     for dset in inputstore['output_dsets'].values():
         if not dset['src'] == 'hdca':
             continue
-        zipdset = gi.tools.run_tool(inputstore['history'], ziptool['id'],
-                                    tool_inputs={'method': 'tar', 'input': {
-                                        'src': 'hdca', 'id': dset['id']}}
-                                    )['outputs'][0]
+        try:
+            zipdset = gi.tools.run_tool(inputstore['history'], ziptool['id'],
+                                        tool_inputs={'method': 'tar', 'input':
+                                                     {'src': 'hdca',
+                                                      'id': dset['id']}}
+                                        )['outputs'][0]
+        except:
+            self.retry(countdown=60)
         dset['packaged'] = zipdset['id']
     return inputstore
 
