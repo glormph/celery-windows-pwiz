@@ -78,6 +78,7 @@ def zip_dataset(self, inputstore):
     """Tar.gz creation of all collection datasets in inputstore which are
     defined as output_dset"""
     # FIXME add MD5 check?
+    print('Running zip_dataset on history {}'.format(inputstore['history']))
     gi = get_galaxy_instance(inputstore)
     # FIXME check package tool and fix for collections
     try:
@@ -104,6 +105,7 @@ def zip_dataset_oldstyle(inputstore):
     """Tar.gz creation of all collection datasets in inputstore which are
     defined as output_dset"""
     # FIXME will only work  on oldstyle prod, deprecate when updated
+    print('Running zip_dataset on history {}'.format(inputstore['history']))
     gi = get_galaxy_instance(inputstore)
     ziptool = gi.tools.get_tools(tool_id='package_dataset')[0]
     for dset in inputstore['output_dsets'].values():

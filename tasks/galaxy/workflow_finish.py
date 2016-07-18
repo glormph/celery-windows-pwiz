@@ -21,6 +21,8 @@ def download_result(inputstore):
     """Downloads both zipped collections and normal datasets. This is a
     task which can occupy the worker for a long time, since it waits for all
     downloadable datasets to be completed"""
+    print('Downloading results to disk from Galaxy to '
+          '{}'.format(inputstore['download_dest']))
     gi = get_galaxy_instance(inputstore)
     workflow_ok = True
     while workflow_ok and False in [x['download_id'] for x in
