@@ -16,56 +16,6 @@ app.conf.update(
 )
 
 
-@app.task(queue=config.QUEUE_GALAXY_WORKFLOW)
-def cleanup(inputstore):
-    #gi = get_galaxy_instance(inputstore)
-    pass
-    # removes analysis history, mzMLs will be left on disk bc they will be in
-    # another history
-
-
-@app.task(queue=config.QUEUE_GALAXY_WORKFLOW, bind=True)
-def zip_dataset(self, inputstore):
-    """Tar.gz creation of all collection datasets in inputstore which are
-    defined as output_dset"""
-    # FIXME add MD5 check?
-    gi = get_galaxy_instance(inputstore)
-    # FIXME check package tool and fix for collections
-    try:
-        ziptool = gi.tools.get_tools(tool_id='package_dataset')[0]
-    except:
-        self.retry(countdown=60)
-    for dset in inputstore['output_dsets'].values():
-        if not dset['src'] == 'hdca':
-            continue
-        try:
-            zipdset = gi.tools.run_tool(inputstore['history'], ziptool['id'],
-                                        tool_inputs={'method': 'tar', 'input':
-                                                     {'src': 'hdca',
-                                                      'id': dset['id']}}
-                                        )['outputs'][0]
-        except:
-            self.retry(countdown=60)
-        dset['packaged'] = zipdset['id']
-    return inputstore
-
-
-@app.task(queue=config.QUEUE_GALAXY_WORKFLOW)
-def zip_dataset_oldstyle(inputstore):
-    """Tar.gz creation of all collection datasets in inputstore which are
-    defined as output_dset"""
-    # FIXME will only work  on oldstyle prod, deprecate when updated
-    gi = get_galaxy_instance(inputstore)
-    ziptool = gi.tools.get_tools(tool_id='package_dataset')[0]
-    for dset in inputstore['output_dsets'].values():
-        zipdset = gi.tools.run_tool(inputstore['history'], ziptool['id'],
-                                    tool_inputs={'method': 'tar', 'input': {
-                                        'src': 'hda', 'id': dset['id']}}
-                                    )['outputs'][0]
-        dset['packaged'] = zipdset['id']
-    return inputstore
-
-
 @app.task(queue=config.QUEUE_GALAXY_RESULT_TRANSFER)
 def download_result(inputstore):
     """Downloads both zipped collections and normal datasets. This is a
