@@ -1,4 +1,5 @@
 from celery import Celery
+from time import sleep
 
 from tasks import config
 from tasks.galaxy.util import get_galaxy_instance
@@ -15,7 +16,7 @@ app.conf.update(
 )
 
 
-@app.task(queue=config.QUEUE_WORKFLOW)
+@app.task(queue=config.QUEUE_GALAXY_WORKFLOW)
 def cleanup(inputstore):
     #gi = get_galaxy_instance(inputstore)
     pass
@@ -60,19 +61,31 @@ def zip_dataset_oldstyle(inputstore):
 
 @app.task(queue=config.QUEUE_GALAXY_RESULT_TRANSFER)
 def download_result(inputstore):
-    """Downloads both zipped collections and normal datasets"""
+    """Downloads both zipped collections and normal datasets. This is a
+    task which can occupy the worker for a long time, since it waits for all
+    downloadable datasets to be completed"""
     gi = get_galaxy_instance(inputstore)
-    while False not in [x['download_state']
-                        for x in inputstore['output_dsets'].values()]:
+    workflow_ok = True
+    while workflow_ok and False in [x['download_id'] for x in
+                                    inputstore['output_dsets'].values()]:
         for dset in inputstore['output_dsets'].values():
+            if dset['download_id'] is not False:
+                # already checked this dataset
+                continue
             try:
                 download_id = dset['packaged']
             except KeyError:
                 download_id = dset['id']
             dset_info = gi.datasets.show_dataset(download_id)
-            if dset_info['state'] == 'ok':
-                gi.datasets.download_dataset(download_id,
-                                             file_path=dset['download_dest'],
-                                             use_default_filename=False)
-                dset['download_state'] = 'ok'
+            if dset_info['state'] == 'ok' and not dset_info['deleted']:
+                dset['download_id'] = download_id
+            elif dset_info['state'] == 'error' or dset_info['deleted']:
+                # Workflow crashed or user intervened, abort downloading
+                workflow_ok = False
+        sleep(60)
+    if workflow_ok:
+        for dset in inputstore['output_dsets'].values():
+            gi.datasets.download_dataset(dset['download_id'],
+                                         file_path=dset['download_dest'],
+                                         use_default_filename=False)
     return inputstore
