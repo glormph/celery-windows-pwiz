@@ -179,12 +179,9 @@ def get_param_map(module, inputstore):
             except json.decoder.JSONDecodeError:
                 # no json obj, no runtime values
                 continue
-            print('after', input_val)
             if type(input_val) == dict:
                 # FIXME do_dict_stuff()
-                print('dict found, values', input_val.values())
                 if dict in [type(x) for x in input_val.values()]:
-                    print('contains a possible runtime dict')
                     # complex input with repeats/conditional
                     for subname, subval in input_val.items():
                         composed_name = '{}|{}'.format(input_name, subname)
@@ -195,12 +192,9 @@ def get_param_map(module, inputstore):
                 else:
                     # simple runtime value check and fill with inputstore value
                     # FIXME do_runtime_stuff()
-                    print('no dict inside')
                     if is_runtime_param(input_val, input_name, modstep):
-                        print('but is a runtimer')
                         fill_runtime_param(parammap, inputstore, input_name,
                                            modstep)
-    print(parammap)
     return parammap
 
 
@@ -222,30 +216,21 @@ def get_collection_id_in_his(his_contents, name, gi):
 
 
 def is_runtime_param(val, name, step):
-    print('checking', name, val)
     try:
         isruntime = val['__class__'] == 'RuntimeValue'
     except TypeError:
-        print('No Runtime at all')
         return False
     except KeyError:
-        print('No Runtime at all, but is a dict anyway')
         return False
     else:
         if isruntime and name not in step['input_steps']:
-            print('Proper Runtime param, not input step')
             return True
-        print('Runtime but also input step so no param')
         return False
 
 
 def fill_runtime_param(parammap, inputstore, name, step, storename=False):
     if not storename:
         storename = name
-    print('filling parammap for tool {}'.format(step['tool_id']))
-    print('param name: {}'.format(name))
-    print('storename: {}'.format(storename))
-    print(inputstore['params'])
     try:
         paramval = inputstore['params'][storename]
     except KeyError:
