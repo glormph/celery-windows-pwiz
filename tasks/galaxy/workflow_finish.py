@@ -75,20 +75,7 @@ def download_result(inputstore):
     workflow_ok = True
     while workflow_ok and False in [x['download_id'] for x in
                                     inputstore['output_dsets'].values()]:
-        for dset in inputstore['output_dsets'].values():
-            if dset['download_id'] is not False:
-                # already checked this dataset
-                continue
-            try:
-                download_id = dset['packaged']
-            except KeyError:
-                download_id = dset['id']
-            dset_info = gi.datasets.show_dataset(download_id)
-            if dset_info['state'] == 'ok' and not dset_info['deleted']:
-                dset['download_id'] = download_id
-            elif dset_info['state'] == 'error' or dset_info['deleted']:
-                # Workflow crashed or user intervened, abort downloading
-                workflow_ok = False
+        workflow_ok = check_output_datasets_wf(gi, inputstore)
         sleep(60)
     if workflow_ok:
         for dset in inputstore['output_dsets'].values():
@@ -96,3 +83,24 @@ def download_result(inputstore):
                                          file_path=dset['download_dest'],
                                          use_default_filename=False)
     return inputstore
+
+
+def check_output_datasets_wf(gi, inputstore):
+    """Checks if to-download datasets in workflow are finished, sets their API
+    ID as download_id if they are ready, returns workflow_ok status in case
+    they are deleted/crashed (False) or not (True)"""
+    for dset in inputstore['output_dsets'].values():
+        if dset['download_id'] is not False:
+            # already checked this dataset
+            continue
+        try:
+            download_id = dset['packaged']
+        except KeyError:
+            download_id = dset['id']
+        dset_info = gi.datasets.show_dataset(download_id)
+        if dset_info['state'] == 'ok' and not dset_info['deleted']:
+            dset['download_id'] = download_id
+        elif dset_info['state'] == 'error' or dset_info['deleted']:
+            # Workflow crashed or user intervened, abort downloading
+            return False
+        return True
