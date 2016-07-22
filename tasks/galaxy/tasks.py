@@ -74,14 +74,15 @@ def run_workflow_module(self, inputstore, module_id):
     return inputstore
 
 
-@app.task(queue=config.QUEUE_GALAXY_WORKFLOW, bind=True)
+@app.task(queue=config.QUEUE_GALAXY_TOOLS, bind=True)
 def zip_dataset(self, inputstore):
     """Tar.gz creation of all collection datasets in inputstore which are
-    defined as output_dset"""
+    defined as output_dset. This is a blocking task because it needs to
+    wait until the zipped data is finished and not in error state"""
     # FIXME add MD5 check?
     print('Running zip_dataset on history {}'.format(inputstore['history']))
     gi = get_galaxy_instance(inputstore)
-    # FIXME check package tool and fix for collections
+    # FIXME create package tool for collections
     try:
         ziptool = gi.tools.get_tools(tool_id='package_dataset')[0]
     except:
@@ -90,6 +91,8 @@ def zip_dataset(self, inputstore):
         if not dset['src'] == 'hdca':
             continue
         try:
+            # FIXME what happens when there is an error input data? GalaxyConn
+            # Exception or what is passed? Should not retry when that happens.
             zipdset = gi.tools.run_tool(inputstore['history'], ziptool['id'],
                                         tool_inputs={'method': 'tar', 'input':
                                                      {'src': 'hdca',
@@ -98,7 +101,16 @@ def zip_dataset(self, inputstore):
         except:
             self.retry(countdown=60)
         dset['packaged'] = zipdset['id']
-    return inputstore
+    workflow_ok = True
+    while workflow_ok and False in [x['download_id'] for x in
+                                    inputstore['output_dsets'].values()]:
+        print('Datasets not ready yet, checking')
+        workflow_ok = check_output_datasets_wf(gi, inputstore)
+        sleep(60)
+    if workflow_ok:
+        return inputstore
+    else:
+        self.retry(countdown=60)
 
 
 @app.task(queue=config.QUEUE_GALAXY_WORKFLOW)
@@ -126,29 +138,24 @@ def cleanup(inputstore):
     # another history
 
 
-@app.task(queue=config.QUEUE_GALAXY_RESULT_TRANSFER)
-def download_result(inputstore):
+@app.task(queue=config.QUEUE_GALAXY_RESULT_TRANSFER, bind=True)
+def download_result(self, inputstore):
     """Downloads both zipped collections and normal datasets. This is a
     task which can occupy the worker for a long time, since it waits for all
     downloadable datasets to be completed"""
     print('Got command to download results to disk from Galaxy for history '
           '{}'.format(inputstore['history']))
     gi = get_galaxy_instance(inputstore)
-    workflow_ok = True
-    while workflow_ok and False in [x['download_id'] for x in
-                                    inputstore['output_dsets'].values()]:
-        print('Datasets not ready yet, checking')
-        workflow_ok = check_output_datasets_wf(gi, inputstore)
-        sleep(60)
-    if workflow_ok:
-        print('Datasets ready, proceeding to download')
-        for dset in inputstore['output_dsets'].values():
-            dirname = os.path.dirname(dset['download_dest'])
-            if not os.path.exists(dirname) or not os.path.isdir(dirname):
-                os.makedirs(os.path.dirname(dset['download_dest']))
+    for dset in inputstore['output_dsets'].values():
+        dirname = os.path.dirname(dset['download_dest'])
+        if not os.path.exists(dirname) or not os.path.isdir(dirname):
+            os.makedirs(os.path.dirname(dset['download_dest']))
+        try:
             gi.datasets.download_dataset(dset['download_id'],
                                          file_path=dset['download_dest'],
                                          use_default_filename=False)
+        except:
+            self.retry(countdown=60)
     return inputstore
 
 
