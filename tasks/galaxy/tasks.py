@@ -28,7 +28,7 @@ if TESTING_FLAG:
 
 @app.task(queue=config.QUEUE_GALAXY_WORKFLOW, bind=True)
 def reuse_history(self, inputstore):
-    input_labels = inputstore['wf']['rerun_inputs']
+    input_labels = inputstore['wf'][0]['rerun_rename_labels'].keys()
     print('Checking reusable other history for datasets for '
           'input steps {}'.format(input_labels))
     gi = get_galaxy_instance(inputstore)
@@ -38,6 +38,9 @@ def reuse_history(self, inputstore):
         create_history(inputstore, gi)
     except:
         self.retry(countdown=60)
+    for label, newlabel in inputstore['wf'][0]['rerun_rename_labels'].items():
+        if newlabel:
+            inputstore[newlabel] = inputstore.pop(label)
     return inputstore
 
 

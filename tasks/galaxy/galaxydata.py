@@ -10,8 +10,9 @@ workflows = [
         'name': 'varDB, tmt10, ENSEMBL, QE', 'modules': [
             'msgf tmt qe', 'percolator vardb', 'psm preproc isobaric vardb',
             'psm post isobaric vardb', 'peptide noncentric isobaric'],
-        'rerun_labels': [
-            'quant lookup', 'postprocessed PSMs target', 'expdata'],
+        'rerun_rename_labels': {
+            'quant lookup': False, 'expdata': False,
+            'PSM table target': 'PSM table target normalsearch'}
     },
 #        {'name': 'labelfree ENSEMBL QE', 'modules':
 #         ['quant labelfree', 'msgf labelfree qe', 'percolator',
