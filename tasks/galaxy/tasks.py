@@ -35,10 +35,9 @@ def reuse_history(self, inputstore):
     try:
         update_inputstore_from_history(gi, inputstore['datasets'],
                                        input_labels, inputstore['history'])
-        history = gi.histories.create_history(name=inputstore['searchname'])
+        create_history(inputstore, gi)
     except:
         self.retry(countdown=60)
-    inputstore['history'] = history['id']
     return inputstore
 
 
@@ -306,21 +305,21 @@ def check_dsets_ok(self, inputstore):
     return inputstore
 
 
+def create_history(inputstore, gi):
+    print('Creating new history for: {}'.format(inputstore['searchname']))
+    check_modules(gi, inputstore['modules'])
+    history = gi.histories.create_history(name=inputstore['searchname'])
+    inputstore['history'] = history['id']
+
+
 @app.task(queue=config.QUEUE_GALAXY_WORKFLOW, bind=True)
 def prepare_run(self, inputstore):
     gi = get_galaxy_instance(inputstore)
-    print('Creating new history for: {}'.format(inputstore['searchname']))
     try:
-        check_modules(gi, inputstore['modules'])
-        history = gi.histories.create_history(name=inputstore['searchname'])
-    except:
+        create_history(inputstore, gi)
+        run_prep_tools(gi, inputstore)
+    except:  # FIXME correct Galaxy error here
         self.retry(countdown=60)
-    inputstore['history'] = history['id']
-    if inputstore['rerun_his'] is None:
-        try:
-            run_prep_tools(gi, inputstore)
-        except:
-            self.retry(countdown=60)
     return inputstore
 
 
