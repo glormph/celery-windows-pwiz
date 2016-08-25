@@ -32,6 +32,7 @@ def reuse_history(self, inputstore):
     print('Checking reusable other history for datasets for '
           'input steps {}'.format(input_labels))
     gi = get_galaxy_instance(inputstore)
+    check_modules(gi, inputstore['modules'])
     try:
         update_inputstore_from_history(gi, inputstore['datasets'],
                                        input_labels, inputstore['history'])
@@ -310,7 +311,6 @@ def check_dsets_ok(self, inputstore):
 
 def create_history(inputstore, gi):
     print('Creating new history for: {}'.format(inputstore['searchname']))
-    check_modules(gi, inputstore['modules'])
     history = gi.histories.create_history(name=inputstore['searchname'])
     inputstore['history'] = history['id']
 
@@ -318,6 +318,7 @@ def create_history(inputstore, gi):
 @app.task(queue=config.QUEUE_GALAXY_WORKFLOW, bind=True)
 def prepare_run(self, inputstore):
     gi = get_galaxy_instance(inputstore)
+    check_modules(gi, inputstore['modules'])
     try:
         create_history(inputstore, gi)
         run_prep_tools(gi, inputstore)
@@ -356,8 +357,10 @@ def run_prep_tools(gi, inputstore):
 def check_modules(gi, modules):
     deleted_error = False
     galaxy_modules = []
-    for mod_id in modules:
-        mod_name = {v: k for k, v in galaxydata.wf_modules.items()}[mod_id]
+    # FIXME not have distributed module UUIDs bc you need to distribute them
+    # No need for github update every time. Doing this now.
+    for mod_id, mod_name in modules:
+        #mod_name = {v: k for k, v in galaxydata.wf_modules.items()}[mod_id]
         print('Checking module {}: fetching workflow for {}'.format(mod_name,
                                                                     mod_id))
         try:
