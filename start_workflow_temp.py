@@ -46,14 +46,14 @@ def main():
 
 def run_workflow(inputstore):
     """Runs a wf as specified in inputstore var"""
-    runchain = [tasks.tmp_put_files_in_collection.s(inputstore)]
+    runchain = [tasks.tmp_put_files_in_collection.s(inputstore),
+                tasks.check_dsets_ok.s()]
     if (inputstore['run'] and len(inputstore['wf']) == 1
             and inputstore['rerun_his'] is None):
         # runs a single workflow composed of some modules
         inputstore['modules'] = get_modules_for_workflow(
             inputstore['wf'][0]['modules'])
-        runchain.extend([tasks.check_dsets_ok.s(inputstore),
-                         tasks.prepare_run.s()])
+        runchain.extend([tasks.prepare_run.s()])
         runchain.extend([tasks.run_workflow_module.s(mod_id)
                          for mod_id in inputstore['modules']])
     elif inputstore['run'] and len(inputstore['wf']) == 2:
@@ -66,8 +66,7 @@ def run_workflow(inputstore):
         #second_wf_mods = [get_modules()[m_name] for m_name
         #                  in inputstore['wf'][1]['modules']]
         inputstore['modules'] = firstwf_mods + second_wf_mods
-        runchain.extend([tasks.check_dsets_ok.s(inputstore),
-                         tasks.prepare_run.s()])
+        runchain.extend([tasks.prepare_run.s()])
         runchain.extend([tasks.run_workflow_module.s(mod_id)
                          for mod_id in firstwf_mods])
         runchain.extend([tasks.reuse_history.s()])
@@ -78,8 +77,7 @@ def run_workflow(inputstore):
         inputstore['history'] = inputstore['rerun_his']
         inputstore['modules'] = get_modules_for_workflow(
             inputstore['wf'][0]['modules'])
-        runchain.extend([tasks.check_dsets_ok.s(inputstore),
-                         tasks.reuse_history.s()])
+        runchain.extend([tasks.reuse_history.s()])
         runchain.extend([tasks.run_workflow_module.s(mod_id)
                          for mod_id in inputstore['modules']])
     else:
