@@ -23,9 +23,9 @@ def main():
     preptask = galaxytasks.prepare_run.delay(inputstore, is_workflow=False)
     inputstore = preptask.get()
     for directory in inputstore['storage_directories']:
-        # TODO change back to the storageshare!
-        # in_directory = os.path.join(config.STORAGESHARE, directory)
-        in_directory = directory  # testing
+        inputstore['current_storage_dir'] = directory
+        in_directory = os.path.join(config.STORAGESHARE, directory)
+        #in_directory = directory  # testing
         rawfiles = get_files_directory(in_directory, 'raw')
         for fn in rawfiles:
             win_rawfile = os.path.join(config.WINSHARE, directory, fn)

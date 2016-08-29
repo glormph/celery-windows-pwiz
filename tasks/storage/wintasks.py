@@ -29,7 +29,7 @@ def tmp_convert_to_mzml(rawfile, inputstore):
     else:
         subprocess_flags = 0
     remote_file = os.path.join(inputstore['winshare'],
-                               inputstore['storage_directory'], rawfile)
+                               inputstore['current_storage_dir'], rawfile)
     print('Received conversion command for file {0}'.format(remote_file))
     infile = copy_infile(remote_file)
     outfile = os.path.splitext(os.path.basename(infile))[0] + '.mzML'

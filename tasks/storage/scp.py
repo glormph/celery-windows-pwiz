@@ -14,7 +14,7 @@ def tmp_scp_storage(resultfn, inputstore):
     scpkey.from_private_key_file(config.SCPKEYFILE)
     mzmlfile = os.path.join('/var/data/conversions', resultfn)
     dst = os.path.join(inputstore['storageshare'],
-                       inputstore['storage_directory'], resultfn)
+                       inputstore['current_storage_dir'], resultfn)
     ssh = SSHClient()
     ssh.connect(config.STORAGESERVER, username=config.SCP_LOGIN, pkey=scpkey)
     with SCPClient(ssh.get_transport()) as scp:
