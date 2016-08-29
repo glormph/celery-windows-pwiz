@@ -34,6 +34,25 @@ def import_file_to_history(mzmlfile_id, mzmlfile, inputstore):
 
 
 @app.task(queue=config.QUEUE_GALAXY_TOOLS)
+def tmp_put_files_in_collection(dsets, inputstore):
+    gi = get_galaxy_instance(inputstore)
+    name_id_hdas = []
+    for sourcehis in inputstore['sourcehis']:
+        name_id_hdas.extend([(ds['name'], ds['id']) for ds in
+                             gi.histories.show_history(sourcehis,
+                                                       contents=True,
+                                                       deleted=False)])
+    coll_spec = {
+        'name': 'spectra', 'collection_type': 'list',
+        'element_identifiers': [{'name': name, 'id': g_id, 'src': 'hda'}
+                                for name, g_id in name_id_hdas]}
+    collection = gi.histories.create_dataset_collection(inputstore['history'],
+                                                        coll_spec)
+    inputstore['mzml_collection'] = collection['id']
+    return inputstore
+
+
+@app.task(queue=config.QUEUE_GALAXY_TOOLS)
 def put_files_in_collection(dsets, inputstore):
     task_ids = inputstore['g_import_celerytasks']
     print('Waiting for {} files to be loaded in Galaxy'.format(len(task_ids)))
