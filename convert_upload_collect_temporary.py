@@ -20,7 +20,7 @@ def main():
     ftpuser = config.USERS[inputstore['user']][0]
     ftppass = getpass('Galaxy password for FTP:')
     test_ftp(config.FTPSERVER, config.FTPPORT, ftpuser, ftppass)
-    preptask = galaxytasks.prepare_run.delay(inputstore, is_workflow=False)
+    preptask = galaxytasks.tmp_prepare_run.delay(inputstore, is_workflow=False)
     inputstore = preptask.get()
     for directory in inputstore['storage_directories']:
         inputstore['current_storage_dir'] = directory
@@ -28,7 +28,7 @@ def main():
         #in_directory = directory  # testing
         rawfiles = get_files_directory(in_directory, 'raw')
         for fn in rawfiles:
-            win_rawfile = os.path.join(config.WINSHARE, directory, fn)
+            win_rawfile = os.path.join(config.WIN_STORAGESHARE, directory, fn)
             chain(wintasks.tmp_convert_to_mzml.s(win_rawfile, inputstore),
                   scp.tmp_scp_storage.s(inputstore),
                   ftp.ftp_temporary.s(config.FTPSERVER,
