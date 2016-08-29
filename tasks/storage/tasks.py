@@ -1,13 +1,12 @@
 import os
 import ftplib
 from time import sleep
-from paramiko import SSHClient, rsakey
-from scp import SCPClient
 from celery import states, result
 from tasks import config, dbaccess
 from celeryapp import app
 from tasks.galaxy.tasks import import_file_to_history, put_files_in_collection
 from tasks.storage.wintasks import tmp_convert_to_mzml
+from tasks.storage.scp import tmp_scp_storage
 
 
 @app.task(queue=config.QUEUE_FTP)
@@ -47,23 +46,6 @@ def ftp_temporary(mzmlfile, server, port, ftpaccount, ftppass, ftpdir):
         ftpcon.storbinary('STOR {0}'.format(dst), fp, blocksize=65535)
     print('done with {}'.format(dst))
     return os.path.join(ftpdir, dst)
-
-
-@app.task(queue=config.QUEUE_SCP)
-def tmp_scp_storage(resultfn, inputstore):
-    print('Copying mzML file {} to storage'.format(resultfn))
-    scpkey = rsakey.RSAKey()
-    scpkey.from_private_key_file(config.SCPKEYFILE)
-    mzmlfile = os.path.join('/var/data/conversions', resultfn)
-    dst = os.path.join(inputstore['storageshare'],
-                       inputstore['storage_directory'], resultfn)
-    ssh = SSHClient()
-    ssh.connect(config.STORAGESERVER, username=config.SCP_LOGIN, pkey=scpkey)
-    with SCPClient(ssh.get_transport()) as scp:
-        scp.put(mzmlfile, dst)
-    print('done with {}'.format(resultfn))
-    os.remove(mzmlfile)
-    return dst
 
 
 @app.task(queue=config.QUEUE_WAIT)
