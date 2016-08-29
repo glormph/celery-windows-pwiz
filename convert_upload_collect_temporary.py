@@ -6,7 +6,6 @@ from celery import chain
 import ftplib
 
 from tasks import config
-from tasks.storage import tasks
 from tasks.galaxy import tasks as galaxytasks
 from tasks.storage import (wintasks, scp, ftp)
 
