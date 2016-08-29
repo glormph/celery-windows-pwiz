@@ -5,6 +5,8 @@ import shutil
 
 from celeryapp import app
 from tasks import config
+from tasks.storage import scp
+
 
 PROTEOWIZ_LOC = ('C:\Program Files\ProteoWizard\ProteoWizard '
                  '3.0.6002\msconvert.exe')

@@ -4,6 +4,7 @@ from scp import SCPClient
 
 from celeryapp import app
 from tasks import config
+from tasks.storage import ftp
 
 
 @app.task(queue=config.QUEUE_SCP)
