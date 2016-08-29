@@ -33,8 +33,10 @@ def import_file_to_history(mzmlfile_id, mzmlfile, inputstore):
     return dset[0]['name'], dset[0]['id']
 
 
-@app.task(queue=config.QUEUE_GALAXY_TOOLS)
-def tmp_put_files_in_collection(dsets, inputstore):
+@app.task(queue='testcoll')
+def tmp_put_files_in_collection(inputstore):
+    print('Putting files from source histories {} in collection in search '
+          'history {}'.format(inputstore['sourcehis'], inputstore['history']))
     gi = get_galaxy_instance(inputstore)
     name_id_hdas = []
     for sourcehis in inputstore['sourcehis']:
@@ -48,7 +50,7 @@ def tmp_put_files_in_collection(dsets, inputstore):
                                 for name, g_id in name_id_hdas]}
     collection = gi.histories.create_dataset_collection(inputstore['history'],
                                                         coll_spec)
-    inputstore['mzml_collection'] = collection['id']
+    inputstore['spectra'] = collection['id']
     return inputstore
 
 
