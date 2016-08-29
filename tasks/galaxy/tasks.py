@@ -2,28 +2,60 @@ import os
 import sys
 import json
 from time import sleep
-from celery import Celery
 from bioblend import galaxy
+from celery.result import AsyncResult
 
-from tasks import config
-from tasks.galaxy import galaxydata
+from tasks import config, dbaccess
 from tasks.galaxy.util import get_galaxy_instance
+from celeryapp import app
 
-TESTING_FLAG = False
 
 # worker module for running workflow mods
+@app.task(queue=config.QUEUE_GALAXY_TOOLS)
+def tmp_import_file_to_history(mzmlfile, inputstore):
+    print('Importing {} to galaxy history {}'.format(mzmlfile,
+                                                     inputstore['history']))
+    gi = get_galaxy_instance(inputstore)
+    dset = gi.tools.upload_from_ftp(mzmlfile,
+                                    inputstore['history'])['outputs']
+    print('File {} imported'.format(mzmlfile))
+    return dset[0]['name'], dset[0]['id']
 
-app = Celery('galaxy', backend='amqp')
-app.conf.update(
-    BROKER_HOST=config.BROKER_URL,
-    BROKER_PORT=config.BROKER_PORT,
-    CELERY_TASK_SERIALIZER=config.CELERY_TASK_SERIALIZER,
-    CELERY_ACCEPT_CONTENT=[config.CELERY_TASK_SERIALIZER],
-)
-if TESTING_FLAG:
-    app.conf.update(
-        CELERY_ACKS_LATE=True
-    )
+
+@app.task(queue=config.QUEUE_GALAXY_TOOLS)
+def import_file_to_history(mzmlfile_id, mzmlfile, inputstore):
+    print('Importing {} to galaxy history {}'.format(mzmlfile,
+                                                     inputstore['history']))
+    gi = get_galaxy_instance(inputstore)
+    dset = gi.tools.upload_from_ftp(mzmlfile, inputstore['history'])['outputs']
+    print('File {} imported'.format(mzmlfile))
+    dbaccess.upload_file(mzmlfile_id, dset[0]['name'], dset[0]['id'])
+    return dset[0]['name'], dset[0]['id']
+
+
+@app.task(queue=config.QUEUE_GALAXY_TOOLS)
+def put_files_in_collection(dsets, inputstore):
+    task_ids = inputstore['g_import_celerytasks']
+    print('Waiting for {} files to be loaded in Galaxy'.format(len(task_ids)))
+    while False in [AsyncResult(x).ready() for x in task_ids]:
+        sleep(2)  # TODO change to 60
+    if True in [AsyncResult(x).failed() for x in task_ids]:
+        raise RuntimeError('Importing failed somewhere for history {}, '
+                           'please check'.format(inputstore['history']))
+    print('Collecting files')
+    gi = get_galaxy_instance(inputstore)
+    name_id_hdas = [x for x in
+                    dbaccess.get_name_id_hdas(inputstore['search_dbid'])]
+    coll_spec = {
+        'name': 'spectra', 'collection_type': 'list',
+        'element_identifiers': [{'name': name, 'id': g_id, 'src': 'hda'}
+                                for name, g_id in name_id_hdas]}
+    collection = gi.histories.create_dataset_collection(inputstore['history'],
+                                                        coll_spec)
+    inputstore['mzml_collection'] = collection['id']
+    dbaccess.store_collection(inputstore['search_dbid'], collection['id'],
+                              [x[1] for x in name_id_hdas])
+    return inputstore
 
 
 @app.task(queue=config.QUEUE_GALAXY_WORKFLOW, bind=True)
@@ -316,12 +348,31 @@ def create_history(inputstore, gi):
 
 
 @app.task(queue=config.QUEUE_GALAXY_WORKFLOW, bind=True)
-def prepare_run(self, inputstore):
+def tmp_prepare_run(self, inputstore, is_workflow=True):
     gi = get_galaxy_instance(inputstore)
-    check_modules(gi, inputstore['modules'])
+    if is_workflow:
+        check_modules(gi, inputstore['modules'])
     try:
         create_history(inputstore, gi)
-        run_prep_tools(gi, inputstore)
+        if is_workflow:
+            run_prep_tools(gi, inputstore)
+    except:  # FIXME correct Galaxy error here
+        self.retry(countdown=60)
+    return inputstore
+
+
+
+@app.task(queue=config.QUEUE_GALAXY_WORKFLOW, bind=True)
+def prepare_run(self, inputstore, is_workflow=True):
+    inputstore['search_dbid'] = dbaccess.init_search(
+        inputstore['searchname'], inputstore['wf_id'], inputstore['mzml_ids'])
+    gi = get_galaxy_instance(inputstore)
+    if is_workflow:
+        check_modules(gi, inputstore['modules'])
+    try:
+        create_history(inputstore, gi)
+        if is_workflow:
+            run_prep_tools(gi, inputstore)
     except:  # FIXME correct Galaxy error here
         self.retry(countdown=60)
     return inputstore
