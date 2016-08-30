@@ -20,11 +20,16 @@ def ftp_transfer(mzml_id, server, port, ftpaccount, ftppass, ftpdir):
         # dir already exists
         print('ftp upload dir already exists')
     ftpcon.cwd(ftpdir)
+    ## FIXME REMOVE when scp works
+    mzmlfile = os.path.join('/var/data/conversions', mzmlfile)
+    ### UNTIL HERE REMOVE
     dst = os.path.split(mzmlfile)[1]
     with open(mzmlfile, 'rb') as fp:
         ftpcon.storbinary('STOR {0}'.format(dst), fp, blocksize=65535)
     print('done with {}'.format(dst))
+    ## FIXME REMOVE when scp works
     os.remove(mzmlfile)
+    ### UNTIL HERE REMOVE
     return os.path.join(ftpdir, dst)
 
 
