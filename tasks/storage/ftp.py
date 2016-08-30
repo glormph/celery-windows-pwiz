@@ -24,6 +24,7 @@ def ftp_transfer(mzml_id, server, port, ftpaccount, ftppass, ftpdir):
     with open(mzmlfile, 'rb') as fp:
         ftpcon.storbinary('STOR {0}'.format(dst), fp, blocksize=65535)
     print('done with {}'.format(dst))
+    os.remove(mzmlfile)
     return os.path.join(ftpdir, dst)
 
 
