@@ -431,9 +431,9 @@ def check_modules(gi, modules):
     galaxy_modules = []
     # FIXME not have distributed module UUIDs bc you need to distribute them
     # No need for github update every time. Doing this now.
-    remote_modules = {mod['uuid']: mod for mod in gi.workflows.get_workflows()}
+    remote_modules = {mod['latest_workflow_uuid']: mod
+                      for mod in gi.workflows.get_workflows()}
     for mod_uuid, mod_name in modules:
-        #mod_name = {v: k for k, v in galaxydata.wf_modules.items()}[mod_id]
         print('Checking module {}: fetching workflow for {}'.format(mod_name,
                                                                     mod_uuid))
         try:

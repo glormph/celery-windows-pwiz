@@ -6,7 +6,7 @@ from celery import chain
 from tasks.galaxy import galaxydata
 from tasks.galaxy import tasks
 from tasks.galaxy import util
-from tasks.galaxy import config
+from tasks import config
 
 
 TESTING_NO_CLEANUP = True
