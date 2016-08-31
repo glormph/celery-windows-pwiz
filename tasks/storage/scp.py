@@ -15,6 +15,7 @@ def tmp_scp_storage(resultfn, inputstore):
     dst = os.path.join(inputstore['storage_localpath'],
                        inputstore['current_storage_dir'], resultfn)
     ssh = SSHClient()
+    ssh.load_system_host_keys()
     ssh.connect(config.STORAGESERVER, username=config.SCP_LOGIN, pkey=scpkey)
     with SCPClient(ssh.get_transport()) as scp:
         scp.put(mzmlfile, dst)
