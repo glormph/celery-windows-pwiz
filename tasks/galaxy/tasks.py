@@ -189,7 +189,7 @@ def download_result(self, inputstore):
     for dset in inputstore['output_dsets'].values():
         dirname = os.path.dirname(dset['download_dest'])
         if not os.path.exists(dirname) or not os.path.isdir(dirname):
-            os.makedirs(os.path.dirname(dset['download_dest']))
+            os.makedirs(dirname)
         try:
             gi.datasets.download_dataset(dset['download_id'],
                                          file_path=dset['download_dest'],
@@ -353,18 +353,24 @@ def create_history(inputstore, gi):
 
 
 @app.task(queue=config.QUEUE_GALAXY_WORKFLOW, bind=True)
-def tmp_prepare_run(self, inputstore, is_workflow=True):
+def tmp_prepare_run(self, inputstore):
     gi = get_galaxy_instance(inputstore)
-    if is_workflow:
-        check_modules(gi, inputstore['modules'])
+    check_modules(gi, inputstore['modules'])
     try:
-        create_history(inputstore, gi)
-        if is_workflow:
-            run_prep_tools(gi, inputstore)
+        run_prep_tools(gi, inputstore)
     except:  # FIXME correct Galaxy error here
         self.retry(countdown=60)
     return inputstore
 
+
+@app.task(queue=config.QUEUE_GALAXY_WORKFLOW, bind=True)
+def tmp_create_history(self, inputstore):
+    gi = get_galaxy_instance(inputstore)
+    try:
+        create_history(inputstore, gi)
+    except:  # FIXME correct Galaxy error here
+        self.retry(countdown=60)
+    return inputstore
 
 
 @app.task(queue=config.QUEUE_GALAXY_WORKFLOW, bind=True)

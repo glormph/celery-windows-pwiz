@@ -21,7 +21,7 @@ def main():
     ftpuser = config.USERS[inputstore['user']][0]
     ftppass = getpass('Galaxy password for FTP:')
     test_ftp(config.FTPSERVER, config.FTPPORT, ftpuser, ftppass)
-    preptask = galaxytasks.tmp_prepare_run.delay(inputstore, is_workflow=False)
+    preptask = galaxytasks.tmp_create_history.delay(inputstore)
     inputstore = preptask.get()
     for directory in inputstore['storage_directories']:
         inputstore['current_storage_dir'] = directory
