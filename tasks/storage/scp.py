@@ -10,8 +10,7 @@ from tasks.storage import ftp
 @app.task(queue=config.QUEUE_SCP)
 def tmp_scp_storage(resultfn, inputstore):
     print('Copying mzML file {} to storage'.format(resultfn))
-    scpkey = rsakey.RSAKey()
-    scpkey.from_private_key_file(config.SCPKEYFILE)
+    scpkey = rsakey.RSAKey.from_private_key_file(config.SCPKEYFILE)
     mzmlfile = os.path.join('/var/data/conversions', resultfn)
     dst = os.path.join(inputstore['storageshare'],
                        inputstore['current_storage_dir'], resultfn)
