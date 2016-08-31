@@ -85,9 +85,8 @@ def run_workflow(inputstore):
               'would you like to --show workflows, run a vardb, or a normal'
               ' search?')
         sys.exit(1)
-    # TODO
-    #runchain.extend([tasks.transfer_data.s(),
-    #                 tasks.cleanup.s()])
+    runchain.extend([tasks.zip_dataset.s(), tasks.download_result.s(),
+                     tasks.cleanup.s()])
     #print(runchain)
     #sys.exit()
     res = chain(*runchain)

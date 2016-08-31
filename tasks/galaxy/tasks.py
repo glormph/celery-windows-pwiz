@@ -33,7 +33,7 @@ def import_file_to_history(mzmlfile_id, mzmlfile, inputstore):
     return dset[0]['name'], dset[0]['id']
 
 
-@app.task(queue='testcoll')
+@app.task(queue=config.QUEUE_GALAXY_TOOLS)
 def tmp_put_files_in_collection(inputstore):
     print('Putting files from source histories {} in collection in search '
           'history {}'.format(inputstore['sourcehis'], inputstore['history']))
@@ -170,25 +170,9 @@ def zip_dataset(self, inputstore):
 
 
 @app.task(queue=config.QUEUE_GALAXY_WORKFLOW)
-def zip_dataset_oldstyle(inputstore):
-    """Tar.gz creation of all collection datasets in inputstore which are
-    defined as output_dset"""
-    # FIXME will only work  on oldstyle prod, deprecate when updated
-    print('Running zip_dataset on history {}'.format(inputstore['history']))
-    gi = get_galaxy_instance(inputstore)
-    ziptool = gi.tools.get_tools(tool_id='package_dataset')[0]
-    for dset in inputstore['output_dsets'].values():
-        zipdset = gi.tools.run_tool(inputstore['history'], ziptool['id'],
-                                    tool_inputs={'method': 'tar', 'input': {
-                                        'src': 'hda', 'id': dset['id']}}
-                                    )['outputs'][0]
-        dset['packaged'] = zipdset['id']
-    return inputstore
-
-
-@app.task(queue=config.QUEUE_GALAXY_WORKFLOW)
 def cleanup(inputstore):
     #gi = get_galaxy_instance(inputstore)
+    # TODO implement
     pass
     # removes analysis history, mzMLs will be left on disk bc they will be in
     # another history
