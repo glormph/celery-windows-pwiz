@@ -431,26 +431,27 @@ def check_modules(gi, modules):
     galaxy_modules = []
     # FIXME not have distributed module UUIDs bc you need to distribute them
     # No need for github update every time. Doing this now.
-    for mod_id, mod_name in modules:
+    remote_modules = {mod['uuid']: mod for mod in gi.workflows.get_workflows()}
+    for mod_uuid, mod_name in modules:
         #mod_name = {v: k for k, v in galaxydata.wf_modules.items()}[mod_id]
         print('Checking module {}: fetching workflow for {}'.format(mod_name,
-                                                                    mod_id))
+                                                                    mod_uuid))
         try:
-            module = gi.workflows.show_workflow(mod_id)
+            remote_mod_id = remote_modules[mod_uuid]['id']
         except KeyError:
-            raise RuntimeError('Cannot find module name {} in local module '
-                               'collection. Check for spelling error or '
-                               'update local collection.'.format(mod_name))
-        except galaxy.client.ConnectionError:
-            raise RuntimeError('Cannot find module {} with UUID {} on the '
-                               'Galaxy server. Check that the correct UUID '
-                               'has been passed.'.format(mod_name, mod_id))
+            raise RuntimeError('Cannot find module "{}" with UUID {} on '
+                               'galaxy server'.format(mod_name, mod_uuid))
+        except galaxy.client.ConnectionError as e:
+            raise RuntimeError('Connection problem when asking for module "{}"'
+                               ' with UUID {} on Galaxy server. '
+                               'Error was {}'.format(mod_name, mod_uuid, e))
         else:
+            module = gi.workflows.show_workflow(remote_mod_id)
             if module['deleted']:
                 deleted_error = True
                 print('Workflow module {} with UUID {} has been '
                       'deleted on Galaxy server, please use '
-                      'latest UUID'.format(module['name'], mod_id))
+                      'latest UUID'.format(module['name'], mod_uuid))
             else:
                 galaxy_modules.append(module)
     if deleted_error:
