@@ -13,6 +13,7 @@ from tasks.storage import (wintasks, scp, ftp)
 def main():
     inputstore = {'winshare': config.WIN_STORAGESHARE,
                   'storageshare': config.STORAGESHARE,
+                  'storage_localpath': config.STORAGE_LOCALPATH,
                   'galaxy_url': config.GALAXY_URL,
                   }
     parse_commandline(inputstore)

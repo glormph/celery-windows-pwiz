@@ -34,10 +34,10 @@ def main():
         download_dsets = {name: inputs[name] for name in output_dset_names}
         for name, dl_dset in download_dsets.items():
             outname = '{}'.format(output_dset_names[name])
+            outdir = inputstore['searchname'].replace(' ' , '_')
             dl_dset['download_state'] = False
             dl_dset['download_dest'] = os.path.join(inputstore['outshare'],
-                                                    inputstore['outpath'],
-                                                    outname)
+                                                    outdir, outname)
         inputstore['output_dsets'] = download_dsets
         inputstore['wf'] = [get_workflows()[num]
                             for num in inputstore['wf_num']]
