@@ -50,7 +50,7 @@ def tmp_put_files_in_collection(inputstore):
                                 for name, g_id in name_id_hdas]}
     collection = gi.histories.create_dataset_collection(inputstore['history'],
                                                         coll_spec)
-    inputstore['spectra'] = collection['id']
+    inputstore['datasets']['spectra'] = {'src': 'hdca', 'id': collection['id']}
     return inputstore
 
 
