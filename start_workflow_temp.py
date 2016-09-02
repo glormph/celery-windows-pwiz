@@ -41,10 +41,10 @@ def main():
         inputstore['output_dsets'] = download_dsets
         inputstore['wf'] = [get_workflows()[num]
                             for num in inputstore['wf_num']]
-        run_workflow(inputstore)
+        run_workflow(inputstore, gi)
 
 
-def run_workflow(inputstore):
+def run_workflow(inputstore, gi):
     """Runs a wf as specified in inputstore var"""
     runchain = [tasks.tmp_create_history.s(inputstore),
                 tasks.tmp_put_files_in_collection.s(),
