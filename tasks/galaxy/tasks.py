@@ -85,7 +85,7 @@ def reuse_history(self, inputstore):
     print('Checking reusable other history for datasets for '
           'input steps {}'.format(input_labels))
     gi = get_galaxy_instance(inputstore)
-    check_modules(gi, inputstore['modules'])
+    check_modules(gi, inputstore['module_uuids'])
     try:
         update_inputstore_from_history(gi, inputstore['datasets'],
                                        input_labels, inputstore['history'])
@@ -99,13 +99,10 @@ def reuse_history(self, inputstore):
 
 
 @app.task(queue=config.QUEUE_GALAXY_WORKFLOW, bind=True)
-def run_workflow_module(self, inputstore, module_id):
-    print('Getting workflow module {}'.format(module_id))
+def run_workflow_module(self, inputstore, module_uuid):
+    print('Getting workflow module {}'.format(module_uuid))
     gi = get_galaxy_instance(inputstore)
-    try:
-        module = gi.workflows.show_workflow(module_id)
-    except:
-        self.retry(countdown=60)
+    module = inputstore['g_modules'][module_uuid]
     input_labels = get_input_labels(module)
     while not check_inputs_ready(inputstore['datasets'], input_labels,
                                  module['name']):
@@ -355,7 +352,7 @@ def create_history(inputstore, gi):
 @app.task(queue=config.QUEUE_GALAXY_WORKFLOW, bind=True)
 def tmp_prepare_run(self, inputstore):
     gi = get_galaxy_instance(inputstore)
-    check_modules(gi, inputstore['modules'])
+    check_modules(gi, inputstore['module_uuids'])
     try:
         run_prep_tools(gi, inputstore)
     except:  # FIXME correct Galaxy error here
@@ -379,7 +376,7 @@ def prepare_run(self, inputstore, is_workflow=True):
         inputstore['searchname'], inputstore['wf_id'], inputstore['mzml_ids'])
     gi = get_galaxy_instance(inputstore)
     if is_workflow:
-        check_modules(gi, inputstore['modules'])
+        check_modules(gi, inputstore['module_uuids'])
     try:
         create_history(inputstore, gi)
         if is_workflow:
@@ -418,7 +415,7 @@ def run_prep_tools(gi, inputstore):
 
 def check_modules(gi, modules):
     deleted_error = False
-    galaxy_modules = []
+    galaxy_modules = {}
     # FIXME not have distributed module UUIDs bc you need to distribute them
     # No need for github update every time. Doing this now.
     remote_modules = {mod['latest_workflow_uuid']: mod
@@ -430,7 +427,8 @@ def check_modules(gi, modules):
             remote_mod_id = remote_modules[mod_uuid]['id']
         except KeyError:
             raise RuntimeError('Cannot find module "{}" with UUID {} on '
-                               'galaxy server'.format(mod_name, mod_uuid))
+                               'galaxy server '
+                               'for this user'.format(mod_name, mod_uuid))
         except galaxy.client.ConnectionError as e:
             raise RuntimeError('Connection problem when asking for module "{}"'
                                ' with UUID {} on Galaxy server. '
@@ -443,7 +441,7 @@ def check_modules(gi, modules):
                       'deleted on Galaxy server, please use '
                       'latest UUID'.format(module['name'], mod_uuid))
             else:
-                galaxy_modules.append(module)
+                galaxy_modules[mod_uuid] = module
     if deleted_error:
         print('Invalid workflow UUIDs have been specified, exiting')
         sys.exit(1)

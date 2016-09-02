@@ -52,11 +52,13 @@ def run_workflow(inputstore, gi):
     if (inputstore['run'] and len(inputstore['wf']) == 1
             and inputstore['rerun_his'] is None):
         # runs a single workflow composed of some modules
-        inputstore['modules'] = get_modules_for_workflow(
+        inputstore['module_uuids'] = get_modules_for_workflow(
             inputstore['wf'][0]['modules'])
+        inputstore['g_modules'] = tasks.check_modules(
+            gi, inputstore['module_uuids'])
         runchain.extend([tasks.tmp_prepare_run.s()])
-        runchain.extend([tasks.run_workflow_module.s(mod_id)
-                         for mod_id in inputstore['modules']])
+        runchain.extend([tasks.run_workflow_module.s(mod_uuid[0])
+                         for mod_uuid in inputstore['module_uuids']])
     elif inputstore['run'] and len(inputstore['wf']) == 2:
         # run two workflows with a history transition tool in between
         firstwf_mods = get_modules_for_workflow(inputstore['wf'][0]['modules'])
@@ -66,21 +68,25 @@ def run_workflow(inputstore, gi):
             inputstore['wf'][1]['modules'])
         #second_wf_mods = [get_modules()[m_name] for m_name
         #                  in inputstore['wf'][1]['modules']]
-        inputstore['modules'] = firstwf_mods + second_wf_mods
+        inputstore['module_uuids'] = firstwf_mods + second_wf_mods
+        inputstore['g_modules'] = tasks.check_modules(
+            gi, inputstore['module_uuids'])
         runchain.extend([tasks.tmp_prepare_run.s()])
-        runchain.extend([tasks.run_workflow_module.s(mod_id)
+        runchain.extend([tasks.run_workflow_module.s(mod_id[0])
                          for mod_id in firstwf_mods])
         runchain.extend([tasks.reuse_history.s()])
-        runchain.extend([tasks.run_workflow_module.s(mod_id)
+        runchain.extend([tasks.run_workflow_module.s(mod_id[0])
                          for mod_id in second_wf_mods])
     elif inputstore['run'] and inputstore['rerun_his']:
         # runs one workflow with a history to reuse from
         inputstore['history'] = inputstore['rerun_his']
-        inputstore['modules'] = get_modules_for_workflow(
+        inputstore['module_uuids'] = get_modules_for_workflow(
             inputstore['wf'][0]['modules'])
+        inputstore['g_modules'] = tasks.check_modules(
+            gi, inputstore['module_uuids'])
         runchain.extend([tasks.reuse_history.s()])
-        runchain.extend([tasks.run_workflow_module.s(mod_id)
-                         for mod_id in inputstore['modules']])
+        runchain.extend([tasks.run_workflow_module.s(mod_id[0])
+                         for mod_id in inputstore['module_uuids']])
     else:
         print('Not quite clear what you are trying to do here, '
               'would you like to --show workflows, run a vardb, or a normal'
