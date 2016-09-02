@@ -316,7 +316,11 @@ def get_input_map(module, inputstore):
 def get_param_map(module, inputstore):
     parammap = {}
     for modstep in module['steps'].values():
-        for input_name, input_val in modstep['tool_inputs'].items():
+        try:
+            tool_param_inputs = modstep['tool_inputs'].items()
+        except AttributeError:
+            continue
+        for input_name, input_val in tool_param_inputs:
             try:
                 input_val = json.loads(input_val)
             except json.decoder.JSONDecodeError:
