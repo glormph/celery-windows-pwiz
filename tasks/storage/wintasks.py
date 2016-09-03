@@ -43,7 +43,7 @@ def tmp_convert_to_mzml(rawfile, inputstore):
     if process.returncode != 0 or not os.path.exists(resultpath):
         raise RuntimeError('Error in running msconvert:\n{}'.format(stdout))
     try:
-        check_mzml_integrity(resultpath):
+        check_mzml_integrity(resultpath)
     except RuntimeError as e:
         self.retry(exc=e)
     copy_outfile(resultpath)
@@ -72,8 +72,8 @@ def check_mzml_integrity(mzmlfile):
         firstlines = fp.readlines(100)
         fp.seek(-100, 2)
         lastlines = fp.readlines()
-    if ('indexedmzML' in ','.join(firstlines) and 
-            'indexedmzML' in ','.join(lastlines)):
+    if ('indexedmzML' in ','.join([str(x) for x in firstlines]) and 
+            'indexedmzML' in ','.join([str(x) for x in lastlines])):
         return True
     else:
         raise RuntimeError('WARNING, conversion did not result in mzML file '
