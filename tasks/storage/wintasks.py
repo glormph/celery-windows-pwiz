@@ -42,6 +42,10 @@ def tmp_convert_to_mzml(rawfile, inputstore):
     (stdout, stderr) = process.communicate()
     if process.returncode != 0 or not os.path.exists(resultpath):
         raise RuntimeError('Error in running msconvert:\n{}'.format(stdout))
+    try:
+        check_mzml_integrity(resultpath):
+    except RuntimeError as e:
+        self.retry(exc=e)
     copy_outfile(resultpath)
     os.remove(infile)
     os.remove(resultpath)
@@ -59,3 +63,19 @@ def copy_outfile(outfile):
     print('copying result file to outbox')
     dst = os.path.join(OUTBOX, os.path.basename(outfile))
     shutil.copy(outfile, dst)
+
+
+def check_mzml_integrity(mzmlfile):
+    """Checks if file is valid XML by parsing it"""
+    # Quick and dirty with head and tail just to check it is not truncated
+    with open(mzmlfile, 'rb') as fp:
+        firstlines = fp.readlines(100)
+        fp.seek(-100, 2)
+        lastlines = fp.readlines()
+    if ('indexedmzML' in ','.join(firstlines) and 
+            'indexedmzML' in ','.join(lastlines)):
+        return True
+    else:
+        raise RuntimeError('WARNING, conversion did not result in mzML file '
+                           'with proper head and tail! Retrying conversion.')
+    # FIXME maybe implement iterparsing if this is not enough.
