@@ -31,7 +31,16 @@ def tmp_convert_to_mzml(self, rawfile, inputstore):
     remote_file = os.path.join(inputstore['winshare'],
                                inputstore['current_storage_dir'], rawfile)
     print('Received conversion command for file {0}'.format(remote_file))
-    infile = copy_infile(remote_file)
+    try:
+        infile = copy_infile(remote_file)
+    except Exception:
+        try:
+            cleanup_files(infile)
+        except FileNotFoundError:
+            pass
+        print('{} -- WARNING, could not copy input {} to local '
+              'disk'.format(e, remote_file))
+        self.retry(exc=e, countdown=60)
     outfile = os.path.splitext(os.path.basename(infile))[0] + '.mzML'
     resultpath = os.path.join(MZMLDUMPS, outfile)
     command = [PROTEOWIZ_LOC, infile, '--filter', '"peakPicking true 2"',
@@ -45,11 +54,22 @@ def tmp_convert_to_mzml(self, rawfile, inputstore):
     try:
         check_mzml_integrity(resultpath)
     except RuntimeError as e:
+        cleanup_files(infile, resultpath)
         self.retry(exc=e)
-    copy_outfile(resultpath)
-    os.remove(infile)
-    os.remove(resultpath)
+    try:
+        copy_outfile(resultpath)
+    except Exception as e:
+        print('{} -- Could not copy converted mzML file {} to '
+              'outdisk'.format(e, resultpath))
+        cleanup_files(infile, resultpath)
+        self.retry(countdown=60, exc=e)
+    cleanup_files(infile, resultpath)
     return outfile
+
+
+def cleanup_files(*files):
+    for fpath in files:
+        os.remove(fpath)
 
 
 def copy_infile(rawfile):
