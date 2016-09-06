@@ -108,6 +108,10 @@ def put_files_in_collection(dsets, inputstore):
     return inputstore
 
 
+def get_searchname(inputstore):
+    return '{}_{}'.format(inputstore['base_searchname'], inputstore['searchtype'])
+
+
 @app.task(queue=config.QUEUE_GALAXY_WORKFLOW, bind=True)
 def transfer_workflow_modules(self, inputstore):
     print('Transferring workflow modules from admin to client account '
@@ -136,17 +140,20 @@ def reuse_history(self, inputstore):
     input_labels = inputstore['wf'][0]['rerun_rename_labels'].keys()
     print('Checking reusable other history for datasets for '
           'input steps {}'.format(input_labels))
+    inputstore['searchname'] = get_searchname(inputstore)
     gi = get_galaxy_instance(inputstore)
-    check_modules(gi, inputstore['module_uuids'])
     try:
         update_inputstore_from_history(gi, inputstore['datasets'],
                                        input_labels, inputstore['history'])
         create_history(inputstore, gi)
-    except:
-        self.retry(countdown=60)
+    except Exception as e:
+        self.retry(countdown=60, exc=e)
+    reuse_datasets = {}
     for label, newlabel in inputstore['wf'][0]['rerun_rename_labels'].items():
         if newlabel:
-            inputstore[newlabel] = inputstore.pop(label)
+            reuse_datasets[newlabel] = inputstore['datasets'].pop(label)
+    inputstore['datasets'] = initialize_datasets()
+    inputstore['datasets'].update(reuse_datasets)
     return inputstore
 
 
