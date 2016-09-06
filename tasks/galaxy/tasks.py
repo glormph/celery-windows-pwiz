@@ -144,7 +144,8 @@ def reuse_history(self, inputstore):
     gi = get_galaxy_instance(inputstore)
     try:
         update_inputstore_from_history(gi, inputstore['datasets'],
-                                       input_labels, inputstore['history'])
+                                       input_labels, inputstore['history'],
+                                       'reuse_history')
         create_history(inputstore, gi)
     except Exception as e:
         self.retry(countdown=60, exc=e)
@@ -163,15 +164,13 @@ def run_workflow_module(self, inputstore, module_uuid):
     gi = get_galaxy_instance(inputstore)
     module = inputstore['g_modules'][module_uuid]
     input_labels = get_input_labels(module)
-    while not check_inputs_ready(inputstore['datasets'], input_labels,
-                                 module['name']):
-        try:
-            update_inputstore_from_history(gi, inputstore['datasets'],
-                                           input_labels,
-                                           inputstore['history'])
-        except:
-            self.retry(countdown=60)
-        sleep(10)
+    try:
+        update_inputstore_from_history(gi, inputstore['datasets'],
+                                       input_labels,
+                                       inputstore['history'], 
+                                       module['name'])
+    except:
+        self.retry(countdown=60)
     mod_inputs = get_input_map(module, inputstore['datasets'])
     mod_params = get_param_map(module, inputstore)
     print('Invoking workflow {} with id {}'.format(module['name'],
@@ -332,11 +331,11 @@ def get_input_labels(wf):
     return names
 
 
-def check_inputs_ready(inputstore, inputnames, modname):
+def check_inputs_ready(datasets, inputnames, modname):
     print('Checking inputs {} for module {}'.format(inputnames, modname))
     ready, missing = True, []
     for name in inputnames:
-        if inputstore[name]['id'] is None:
+        if datasets[name]['id'] is None:
             missing.append(name)
             ready = False
     if not ready:
@@ -347,19 +346,33 @@ def check_inputs_ready(inputstore, inputnames, modname):
     return ready
 
 
-def update_inputstore_from_history(gi, inputstore, input_names, history_id):
+def dset_usable(dset):
+    state_ok = True
+    if 'state' in dset and dset['state'] == 'error':
+        state_ok = False
+    if dset['deleted'] or not state_ok:
+        return False
+    else:
+        return True
+
+
+def update_inputstore_from_history(gi, datasets, dsetnames, history_id, modname):
     print('Getting history contents')
-    his_contents = gi.histories.show_history(history_id, contents=True,
-                                             deleted=False)
-    for dset in his_contents:
-        name = dset['name']
-        if name in input_names and inputstore[name]['id'] is None:
-            print('found dset {}'.format(name))
-            if inputstore[name]['src'] == 'hdca':
-                inputstore[name]['id'] = get_collection_id_in_his(his_contents,
-                                                                  name, gi)
-            elif inputstore[name]['src'] == 'hda':
-                inputstore[name]['id'] = dset['id']
+    while not check_inputs_ready(datasets, dsetnames, modname):
+        his_contents = gi.histories.show_history(history_id, contents=True,
+                                                 deleted=False)
+        for dset in his_contents:
+            if not dset_usable(dset): 
+                continue
+            name = dset['name']
+            if name in dsetnames and datasets[name]['id'] is None:
+                print('found dset {}'.format(name))
+                if datasets[name]['src'] == 'hdca':
+                    datasets[name]['id'] = get_collection_id_in_his(his_contents,
+                                                                      name, gi)
+                elif datasets[name]['src'] == 'hda':
+                    datasets[name]['id'] = dset['id']
+        sleep(10)
 
 
 def get_input_map(module, inputstore):
