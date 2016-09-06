@@ -15,7 +15,7 @@ MZMLDUMPS = 'C:\\mzmldump'
 OUTBOX = 'X:'
 
 
-@app.task(bind=True, config.QUEUE_CONVERSION)
+@app.task(bind=True, queue=config.QUEUE_CONVERSION)
 def tmp_convert_to_mzml(self, rawfile, inputstore):
     if sys.platform.startswith("win"):
         # Don't display the Windows GPF dialog if the invoked program dies.
