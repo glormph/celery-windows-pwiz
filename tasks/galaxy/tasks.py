@@ -494,8 +494,8 @@ def tmp_prepare_run(self, inputstore):
     check_modules(gi, inputstore['module_uuids'])
     try:
         run_prep_tools(gi, inputstore)
-    except:  # FIXME correct Galaxy error here
-        self.retry(countdown=60)
+    except Exception as e:  # FIXME correct Galaxy error here
+        self.retry(countdown=60, exc=e)
     return inputstore
 
 
