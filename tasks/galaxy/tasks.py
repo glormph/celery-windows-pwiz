@@ -7,10 +7,39 @@ from celery.result import AsyncResult
 
 from tasks import config, dbaccess
 from tasks.galaxy.util import get_galaxy_instance
+from tasks.galaxy import galaxydata
 from celeryapp import app
 
 
-# worker module for running workflow mods
+def get_library_dsets(gi):
+    dset_names_libname = {'target db': 'databases', 'biomart map': 'databases',
+                          'modifications': 'modifications'}
+    output = {}
+    for name, libtype in dset_names_libname.items():
+        dsets = gi.libraries.show_library(galaxydata.libraries[libtype],
+                                          contents=True)
+        print('Select a {} dataset from {}, or enter to skip'.format(name, 
+                                                                     libtype))
+        print('--------------------')
+        dsets = [x for x in dsets if x['type'] == 'file']
+        for ix, dset in enumerate(dsets):
+            print(ix, dset['name'])
+        while True: 
+            pick = input('Enter selection: ')
+            if pick == '':
+                break
+            try:
+                pick = int(pick)
+            except ValueError:
+                print('Please enter a number corresponding to a dataset or enter')
+                continue
+            break
+        if pick != '':
+            output[name] = {'src': 'ldda', 'id': dsets[pick]['id'],
+                            'galaxy_name': dsets[pick]['name']}
+    return output
+        
+
 @app.task(queue=config.QUEUE_GALAXY_TOOLS)
 def tmp_import_file_to_history(mzmlfile, inputstore):
     print('Importing {} to galaxy history {}'.format(mzmlfile,
