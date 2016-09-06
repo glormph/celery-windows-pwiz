@@ -1,103 +1,25 @@
 import sys
 import os
 import argparse
-from celery import chain
 
 from tasks.galaxy import galaxydata
 from tasks.galaxy import tasks
 from tasks.galaxy import util
 from tasks import config
 
+from workflow_starter import prep_workflow, run_workflow
+
 
 TESTING_NO_CLEANUP = True
 
-
 def main():
-    inputstore = {'params': {},
-                  'galaxy_url': config.GALAXY_URL,
-                  }
-    inputs = {name: {'src': 'hda', 'id': None} for name in
-              get_flatfile_names_inputstore()}
-    inputs.update({name: {'src': 'hdca', 'id': None} for name in
-                   get_collection_names_inputstore()})
-    inputstore['datasets'] = inputs
-    parse_commandline(inputstore)
-    gi = util.get_galaxy_instance(inputstore)
-    if inputstore['run'] == 'show':
-        for num, wf in enumerate(get_workflows()):
-            modules = get_modules_for_workflow(wf['modules'])
-            tasks.check_modules(gi, modules)
-            print('{}  -  {}'.format(num, wf['name']))
-    else:
-        #inputstore['datasets']['spectra']
-        output_dset_names = get_output_dsets()
-        download_dsets = {name: inputs[name] for name in output_dset_names}
-        for name, dl_dset in download_dsets.items():
-            outname = '{}'.format(output_dset_names[name])
-            outdir = inputstore['searchname'].replace(' ' , '_')
-            dl_dset['download_state'] = False
-            dl_dset['download_dest'] = os.path.join(inputstore['outshare'],
-                                                    outdir, outname)
-        inputstore['output_dsets'] = download_dsets
-        inputstore['wf'] = [get_workflows()[num]
-                            for num in inputstore['wf_num']]
-        run_workflow(inputstore, gi)
-
-
-def run_workflow(inputstore, gi):
-    """Runs a wf as specified in inputstore var"""
-    runchain = [tasks.tmp_create_history.s(inputstore),
+    inputstore, gi = prep_workflow(parse_commandline)
+    inputstore = tasks.transfer_workflow_modules(inputstore)
+    runchain = [
+                tasks.tmp_create_history.s(inputstore),
                 tasks.tmp_put_files_in_collection.s(),
                 tasks.check_dsets_ok.s()]
-    if (inputstore['run'] and len(inputstore['wf']) == 1
-            and inputstore['rerun_his'] is None):
-        # runs a single workflow composed of some modules
-        inputstore['module_uuids'] = get_modules_for_workflow(
-            inputstore['wf'][0]['modules'])
-        inputstore['g_modules'] = tasks.check_modules(
-            gi, inputstore['module_uuids'])
-        runchain.extend([tasks.tmp_prepare_run.s()])
-        runchain.extend([tasks.run_workflow_module.s(mod_uuid[0])
-                         for mod_uuid in inputstore['module_uuids']])
-    elif inputstore['run'] and len(inputstore['wf']) == 2:
-        # run two workflows with a history transition tool in between
-        firstwf_mods = get_modules_for_workflow(inputstore['wf'][0]['modules'])
-#        [get_modules()[m_name] for m_name
-#                         in inputstore['wf'][0]['modules']]
-        second_wf_mods = get_modules_for_workflow(
-            inputstore['wf'][1]['modules'])
-        #second_wf_mods = [get_modules()[m_name] for m_name
-        #                  in inputstore['wf'][1]['modules']]
-        inputstore['module_uuids'] = firstwf_mods + second_wf_mods
-        inputstore['g_modules'] = tasks.check_modules(
-            gi, inputstore['module_uuids'])
-        runchain.extend([tasks.tmp_prepare_run.s()])
-        runchain.extend([tasks.run_workflow_module.s(mod_id[0])
-                         for mod_id in firstwf_mods])
-        runchain.extend([tasks.reuse_history.s()])
-        runchain.extend([tasks.run_workflow_module.s(mod_id[0])
-                         for mod_id in second_wf_mods])
-    elif inputstore['run'] and inputstore['rerun_his']:
-        # runs one workflow with a history to reuse from
-        inputstore['history'] = inputstore['rerun_his']
-        inputstore['module_uuids'] = get_modules_for_workflow(
-            inputstore['wf'][0]['modules'])
-        inputstore['g_modules'] = tasks.check_modules(
-            gi, inputstore['module_uuids'])
-        runchain.extend([tasks.reuse_history.s()])
-        runchain.extend([tasks.run_workflow_module.s(mod_id[0])
-                         for mod_id in inputstore['module_uuids']])
-    else:
-        print('Not quite clear what you are trying to do here, '
-              'would you like to --show workflows, run a vardb, or a normal'
-              ' search?')
-        sys.exit(1)
-    runchain.extend([tasks.zip_dataset.s(), tasks.download_result.s(),
-                     tasks.cleanup.s()])
-    #print(runchain)
-    #sys.exit()
-    res = chain(*runchain)
-    res.delay()
+    run_workflow(inputstore, gi, runchain) 
 
 
 def parse_commandline(inputstore):
@@ -110,10 +32,10 @@ def parse_commandline(inputstore):
     parser.add_argument('--reuse-history', dest='reuse_history')
     parser.add_argument('-w', dest='analysisnr', type=int, nargs=True)
     parser.add_argument('--sourcehists', dest='sourcehistories', nargs='+')
-    parser.add_argument('-d', dest='target_db')
-    parser.add_argument('-m', dest='modifications')
+    #parser.add_argument('-d', dest='target_db')
+    #parser.add_argument('-m', dest='modifications')
     parser.add_argument('--name', dest='searchname')
-    parser.add_argument('--mart', dest='biomart_map')
+    #parser.add_argument('--mart', dest='biomart_map')
     parser.add_argument('--setnames', dest='setnames', nargs='+')
     parser.add_argument('--setpatterns', dest='setpatterns', nargs='+')
     parser.add_argument('--isobtype', dest='isobtype', default=None)
@@ -142,29 +64,9 @@ def parse_commandline(inputstore):
             inputstore['params'][param] = getattr(args, param)
     if args.denominators is not None:
         inputstore['params']['denominators'] = ' '.join(args.denominators)
-    inputstore['searchname'] = args.searchname
+    inputstore['base_searchname'] = args.searchname
     inputstore['wf_num'] = args.analysisnr
     inputstore['rerun_his'] = args.reuse_history
-
-
-def get_modules_for_workflow(wf_mods):
-    return [(galaxydata.wf_modules[m_name], m_name) for m_name in wf_mods]
-
-
-def get_flatfile_names_inputstore():
-    return galaxydata.flatfile_names
-
-
-def get_collection_names_inputstore():
-    return galaxydata.collection_names
-
-
-def get_output_dsets():
-    return galaxydata.download_data_names
-
-
-def get_workflows():
-    return galaxydata.workflows
 
 
 if __name__ == '__main__':
