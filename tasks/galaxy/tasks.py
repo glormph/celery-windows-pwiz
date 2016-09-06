@@ -186,47 +186,25 @@ def run_workflow_module(self, inputstore, module_uuid):
 
 
 @app.task(queue=config.QUEUE_GALAXY_WORKFLOW, bind=True)
-def wait_for_output_zipped(self, inputstore):
+def get_datasets_to_download(self, inputstore):
     gi = get_galaxy_instance(inputstore)
-    ready_to_zip = False
-    zip_dsets = {name: dset for name, dset in inputstore['output_dsets'].items()
-                 if dset['src'] == 'hdca'}
-    while not ready_to_zip:
-        print('To-zip output datasets not yet identified, checking')
-        try:
-            ready_to_zip = check_ready_to_zip(gi, zip_dsets)
-        except:
-            self.retry(countdown=60)
-        else:
-            sleep(60)
-    return inputstore
-
-
-@app.task(queue=config.QUEUE_GALAXY_WORKFLOW, bind=True)
-def zip_dataset(self, inputstore):
-    """Tar.gz creation of all collection datasets in inputstore which are
-    defined as output_dset. 
-    wait until the zipped data is finished and not in error state"""
-    # FIXME add MD5 check?
-    print('Running zip_dataset on history {}'.format(inputstore['history']))
-    gi = get_galaxy_instance(inputstore)
-    # FIXME create package tool for collections
-    # First check if all datasets are ready to be zipped.
+    output_dset_names = get_output_dsets()
+    download_dsets = {name: inputstore['datasets'][name] 
+                      for name in output_dset_names}
+    for name, dl_dset in download_dsets.items():
+        outname = '{}'.format(output_dset_names[name])
+        outdir = '{}'.format(inputstore['searchname'].replace(' ' , '_'))
+        dl_dset.update({'download_state': False, 'download_id': False,
+                        'download_dest': os.path.join(inputstore['outshare'],
+                                                      outdir, outname)})
+    inputstore['output_dsets'] = download_dsets
     try:
-        ziptool = gi.tools.get_tools(tool_id='package_dataset')[0]
-    except:
-        self.retry(countdown=60)
-    for dset in zip_datasets.values():
-        try:
-            zipdset = gi.tools.run_tool(inputstore['history'], ziptool['id'],
-                                        tool_inputs={'method': 'tar', 'input':
-                                                     {'src': 'hdca',
-                                                      'id': dset['id']}}
-                                        )['outputs'][0]
-        except:
-            self.retry(countdown=60)
-        else:
-            dset['packaged'] = zipdset['id']
+        update_inputstore_from_history(gi, inputstore['output_dsets'],
+                                       inputstore['output_dsets'].keys(),
+                                       inputstore['history'], 'download')
+    except Exception as e:
+        self.retry(countdown=60, exc=e)
+    print('Found datasets to download, {}'.format(download_dsets))
     return inputstore
 
 
@@ -234,16 +212,19 @@ def zip_dataset(self, inputstore):
 def wait_for_completion(self, inputstore):
     """Waits for all output data to be finished before continuing with 
     download steps"""
+    print('Wait for completion of datasets to download')
     workflow_ok = True
+    gi = get_galaxy_instance(inputstore)
     while workflow_ok and False in [x['download_id'] for x in
                                     inputstore['output_dsets'].values()]:
         print('Datasets not ready yet, checking')
         try:
             workflow_ok = check_outputs_workflow_ok(gi, inputstore)
-        except:
-            self.retry(countdown=60)
+        except Exception as e:
+            self.retry(countdown=60, exc=e)
         sleep(60)
     if workflow_ok:
+        print('Datasets ready for downloading in history {}'.format(inputstore['history']))
         return inputstore
     else:
         raise RuntimeError('Output datasets are in error or deleted state!')
@@ -256,6 +237,16 @@ def cleanup(inputstore):
     pass
     # removes analysis history, mzMLs will be left on disk bc they will be in
     # another history
+
+
+def get_download_task_chain(inputstore=False):
+    if inputstore:
+        tasks = [get_datasets_to_download.s(inputstore)]
+    else:
+        tasks = [get_datasets_to_download.s()]
+    tasks.extend([wait_for_completion.s(), download_result.s(),
+                  write_report.s()])
+    return tasks
 
 
 @app.task(queue=config.QUEUE_STORAGE, bind=True)
@@ -274,43 +265,65 @@ def download_result(self, inputstore):
                                          use_default_filename=False)
         except:
             self.retry(countdown=60)
+    print('Finished downloading results to disk for history '
+          '{}'.format(inputstore['history']))
     return inputstore
 
 
-def check_ready_to_zip(gi, zip_dsets):
-    """Loops through datasets, if one or more of them are not ready yet, 
-    return False"""
-    for name, dset in zip_dsets.items():
-        if not check_dset_success(gi, dset['id']):
-            return False
-    return True
+@app.task(queue=config.QUEUE_STORAGE)
+def write_report(inputstore):
+    print('Writing report file for history {}'.format(inputstore['history']))
+    report = {'name': inputstore['searchname'],
+              'date': datetime.now().strftime('%Y%m%d'),
+              'workflows': [wf['name'] for wf in inputstore['wf']],
+              'workflow_modules': inputstore['module_uuids'],
+              'galaxy history': inputstore['history'],
+              'input parameters': inputstore['params'],
+              'reused galaxy history': inputstore['rerun_his'],
+              'datasets': inputstore['datasets'],
+              }
+              
+    reportfile = os.path.join(inputstore['outshare'], 
+                              inputstore['searchname'].replace(' ', '_'),
+                              'report.json')
+    with open(reportfile, 'w') as fp:
+        json.dump(report, fp, indent=2)
 
-        
+
+def initialize_datasets():
+    """(Re)fills inputstore with empty dict of datasets which are to be 
+    made by Galaxy"""
+    inputs = {name: {'src': 'hda', 'id': None} for name in
+              get_flatfile_names_inputstore()}
+    inputs.update({name: {'src': 'hdca', 'id': None} for name in
+                   get_collection_names_inputstore()})
+    return inputs
+
+
 def check_outputs_workflow_ok(gi, inputstore):
     """Checks if to-download datasets in workflow are finished, sets their API
     ID as download_id if they are ready, returns workflow_ok status in case
     they are deleted/crashed (False) or not (True)"""
-    for dset in inputstore['output_dsets'].values():
+    for name, dset in inputstore['output_dsets'].items():
         if dset['download_id'] is not False:
             # already checked this dataset
             continue
-        try:
-            download_id = dset['packaged']
-        except KeyError:
-            download_id = dset['id']
-        if check_dset_success(gi, download_id):
+        download_id = dset['id']
+        print('Checking dset success for {} {}'.format(download_id, name))
+        dset_success = check_dset_success(gi, download_id)
+        if dset_success == 'ready':
             dset['download_id'] = download_id
-            return True
-        else:
+        elif not dset_success:
             # Workflow crashed or user intervened, abort downloading
             return False
+    return True
 
 
 def check_dset_success(gi, dset_id):
         dset_info = gi.datasets.show_dataset(dset_id)
         if dset_info['state'] == 'ok' and not dset_info['deleted']:
             print('Dataset {} ready'.format(dset_id))
-            return True
+            return 'ready'
         elif dset_info['state'] == 'error' or dset_info['deleted']:
             # Workflow crashed or user intervened, abort downloading
             print('WARNING! Dataset {}: {} state is '
