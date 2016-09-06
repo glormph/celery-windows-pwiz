@@ -1,6 +1,7 @@
 import os
 import sys
 import json
+from datetime import datetime
 from time import sleep
 from bioblend import galaxy
 from celery.result import AsyncResult
@@ -530,13 +531,16 @@ def run_prep_tools(gi, inputstore):
     to call on WF API"""
     spectra = {'src': 'hdca', 'id': inputstore['datasets']['spectra']['id']}
     expdata_inputs = {'percopoolsize': inputstore['params']['ppoolsize'],
-                      'spectra': spectra,
-                      'isoquant': inputstore['params']['isobtype']}
+                      'spectra': spectra}
+    if 'isobtype' in inputstore['params']:
+        expdata_inputs['isoquant'] = inputstore['params']['isobtype']
     for count, (set_id, set_name) in enumerate(
             zip(inputstore['params']['setpatterns'],
                 inputstore['params']['setnames'])):
         expdata_inputs['pools_{}|set_identifier'.format(str(count))] = set_id
         expdata_inputs['pools_{}|set_name'.format(str(count))] = set_name
+    for count, pp_id in enumerate(inputstore['params']['perco_ids']):
+        expdata_inputs['percopoolids_{}|ppool_identifier'.format(str(count))] = pp_id
     print('Running sample pool tool')
     pooltool = gi.tools.get_tools(tool_id='experiment_data')[0]
     expdata = gi.tools.run_tool(inputstore['history'], pooltool['id'],
@@ -584,3 +588,17 @@ def check_modules(gi, modules):
         print('Invalid workflow UUIDs have been specified, exiting')
         sys.exit(1)
     return galaxy_modules
+
+
+def get_flatfile_names_inputstore():
+    return galaxydata.flatfile_names
+
+
+def get_collection_names_inputstore():
+    return galaxydata.collection_names
+
+
+def get_output_dsets():
+    return galaxydata.download_data_names
+
+
