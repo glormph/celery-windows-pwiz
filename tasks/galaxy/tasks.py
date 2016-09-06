@@ -109,6 +109,29 @@ def put_files_in_collection(dsets, inputstore):
 
 
 @app.task(queue=config.QUEUE_GALAXY_WORKFLOW, bind=True)
+def transfer_workflow_modules(self, inputstore):
+    print('Transferring workflow modules from admin to client account '
+          'to get latest updates')
+    if inputstore['apikey'] == config.ADMIN_APIKEY:
+        return inputstore
+    admin = {'galaxy_url': inputstore['galaxy_url'], 
+             'apikey': config.ADMIN_APIKEY}
+    gi_admin = get_galaxy_instance(admin)
+    gi = get_galaxy_instance(inputstore)
+    for wf in gi.workflows.get_workflows():
+        if wf['name'][:4] == 'mod:':
+            gi.workflows.delete_workflow(wf['id'])
+    for wf in gi_admin.workflows.get_workflows():
+        if not wf['name'][:4] == 'mod:':
+            continue
+        print('Getting workflow from admin: {}', wf['id'], wf['name'])
+        wf_json = gi_admin.workflows.export_workflow_json(wf['id'])
+        wf_json['name'] = wf_json['name'].replace('(imported from API)', 
+                                                  '').strip()
+        gi.workflows.import_workflow_json(wf_json)
+    return inputstore
+        
+@app.task(queue=config.QUEUE_GALAXY_WORKFLOW, bind=True)
 def reuse_history(self, inputstore):
     input_labels = inputstore['wf'][0]['rerun_rename_labels'].keys()
     print('Checking reusable other history for datasets for '
