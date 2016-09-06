@@ -408,7 +408,7 @@ def get_param_map(module, inputstore):
         for input_name, input_val in tool_param_inputs:
             try:
                 input_val = json.loads(input_val)
-            except (json.decoder.JSONDecodeError, ValueError):
+            except ValueError:
                 # no json obj, no runtime values
                 continue
             if type(input_val) == dict:
