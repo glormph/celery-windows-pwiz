@@ -36,7 +36,7 @@ def get_library_dsets(gi):
                 continue
             break
         if pick != '':
-            output[name] = {'src': 'ldda', 'id': dsets[pick]['id'],
+            output[name] = {'src': 'ld', 'id': dsets[pick]['id'],
                             'galaxy_name': dsets[pick]['name']}
     return output
         
