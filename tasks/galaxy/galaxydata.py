@@ -24,7 +24,7 @@ workflows = [
         'searchtype': 'vardb',
         'rerun_rename_labels': {
             'quant lookup': False, 'expdata': False,
-            'PSM table target': 'PSM table target normalsearch'}
+            'PSM table target': 'PSM table target normalsearch'},
         'not_outputs': ['protein table', 'gene table', 'symbol table'],
     },
         {'name': 'labelfree ENSEMBL QE', 'modules':
@@ -32,7 +32,7 @@ workflows = [
           'psm preproc lfree ensembl', 'psm proteingroup',
           'psm post labelfree', 'peptide protein labelfree', 'gene labelfree',
           'protein labelfree', 'symbol labelfree'],
-        'searchtype': 'standard'
+        'searchtype': 'standard',
         'not_outputs': [],
         }
 ]

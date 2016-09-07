@@ -28,6 +28,7 @@ def main():
     inputstore['searchname'] = gi.histories.show_history(
         inputstore['history'])['name']
     inputstore['rerun_his'] = 'NA'
+    inputstore['current_wf'] = 0
     runchain = tasks.get_download_task_chain(inputstore)
     res = chain(*runchain)
     res.delay()

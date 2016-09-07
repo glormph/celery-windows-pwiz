@@ -192,12 +192,13 @@ def run_workflow_module(self, inputstore, module_uuid):
 
 @app.task(queue=config.QUEUE_GALAXY_WORKFLOW, bind=True)
 def get_datasets_to_download(self, inputstore):
+    print('Collecting dataset IDs to download')
     gi = get_galaxy_instance(inputstore)
     output_names = get_output_dsets(inputstore['wf'][inputstore['current_wf']])
     download_dsets = {name: inputstore['datasets'][name] 
                       for name in output_names}
     for name, dl_dset in download_dsets.items():
-        outname = '{}'.format(output_dset_names[name])
+        outname = '{}'.format(output_names[name])
         outdir = '{}'.format(inputstore['searchname'].replace(' ' , '_'))
         dl_dset.update({'download_state': False, 'download_id': False,
                         'download_dest': os.path.join(inputstore['outshare'],
@@ -602,7 +603,7 @@ def get_collection_names_inputstore():
     return galaxydata.collection_names
 
 
-def get_output_dsets(workflows):
+def get_output_dsets(wf):
     outnames = set(galaxydata.download_data_names).difference(wf['not_outputs'])
     return {k: galaxydata.download_data_names[k] for k in outnames}
 
