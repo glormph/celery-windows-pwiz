@@ -32,6 +32,26 @@ def prep_workflow(parsefun):
     return inputstore, gi
 
 
+def select_workflow():
+    print('--------------------')
+    workflows = get_workflows()
+    for num, wf in enumerate(workflows):
+        print(num, wf['name'])
+    while True: 
+        picks = input('Which workflow (combination) has been run? '
+                      'Separate combinations with commas: ')
+        try:
+            picks = [int(pick) for pick in picks.split(',')]
+        except ValueError:
+            print('Please enter number(s separated with a comma)')
+            continue
+        else:
+            break
+    modules = [get_modules_for_workflow(workflows[p]['modules']) for p in picks]
+    return {'wf': [workflows[p] for p in picks], 
+            'module_uuids': [y for x in modules for y in x]}
+
+
 def get_workflows():
     return galaxydata.workflows
 
