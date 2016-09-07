@@ -142,6 +142,9 @@ def reuse_history(self, inputstore):
     print('Checking reusable other history for datasets for '
           'input steps {}'.format(input_labels))
     inputstore['searchname'] = get_searchname(inputstore)
+    # TODO launch download chain in this task on old history, so user will
+    # not have to wait for download before new search is run. Useful in case
+    # long slow downloads.
     gi = get_galaxy_instance(inputstore)
     try:
         update_inputstore_from_history(gi, inputstore['datasets'],
@@ -156,6 +159,7 @@ def reuse_history(self, inputstore):
             reuse_datasets[newlabel] = inputstore['datasets'].pop(label)
     inputstore['datasets'] = initialize_datasets()
     inputstore['datasets'].update(reuse_datasets)
+    inputstore['current_wf'] += 1
     return inputstore
 
 
@@ -189,9 +193,9 @@ def run_workflow_module(self, inputstore, module_uuid):
 @app.task(queue=config.QUEUE_GALAXY_WORKFLOW, bind=True)
 def get_datasets_to_download(self, inputstore):
     gi = get_galaxy_instance(inputstore)
-    output_dset_names = get_output_dsets()
+    output_names = get_output_dsets(inputstore['wf'][inputstore['current_wf']])
     download_dsets = {name: inputstore['datasets'][name] 
-                      for name in output_dset_names}
+                      for name in output_names}
     for name, dl_dset in download_dsets.items():
         outname = '{}'.format(output_dset_names[name])
         outdir = '{}'.format(inputstore['searchname'].replace(' ' , '_'))
@@ -598,7 +602,8 @@ def get_collection_names_inputstore():
     return galaxydata.collection_names
 
 
-def get_output_dsets():
-    return galaxydata.download_data_names
+def get_output_dsets(workflows):
+    outnames = set(galaxydata.download_data_names).difference(wf['not_outputs'])
+    return {k: galaxydata.download_data_names[k] for k in outnames}
 
 

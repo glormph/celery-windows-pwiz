@@ -6,14 +6,16 @@ workflows = [
             'psm post isobaric', 'peptide protein isobaric', 'gene isobaric',
             'protein isobaric', 'symbol isobaric'],
         'searchtype': 'standard',
+        'not_outputs': [],
     },
     {
         'name': 'tmt10, uni/swissprot, QE', 'modules': [
             'quant iso', 'msgf tmt qe', 'percolator',
             'psm preproc isobaric uniswiss', 'psm proteingroup',
             'psm post isobaric', 'peptide protein isobaric', 'gene isobaric',
-            'protein isobaric', 'symbol isobaric'],
+            'protein isobaric'],
         'searchtype': 'standard',
+        'not_outputs': ['symbol table'],
     },
     {
         'name': 'varDB, tmt10, ENSEMBL, QE', 'modules': [
@@ -23,6 +25,7 @@ workflows = [
         'rerun_rename_labels': {
             'quant lookup': False, 'expdata': False,
             'PSM table target': 'PSM table target normalsearch'}
+        'not_outputs': ['protein table', 'gene table', 'symbol table'],
     },
         {'name': 'labelfree ENSEMBL QE', 'modules':
          ['quant labelfree', 'msgf labelfree qe', 'percolator',
@@ -30,6 +33,7 @@ workflows = [
           'psm post labelfree', 'peptide protein labelfree', 'gene labelfree',
           'protein labelfree', 'symbol labelfree'],
         'searchtype': 'standard'
+        'not_outputs': [],
         }
 ]
 

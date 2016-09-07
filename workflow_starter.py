@@ -44,6 +44,7 @@ def run_workflow(inputstore, gi, runchain):
     """Runs a wf as specified in inputstore var"""
     inputstore['searchtype'] = inputstore['wf'][0]['searchtype']
     inputstore['searchname'] = tasks.get_searchname(inputstore)
+    inputstore['current_wf'] = 0
     if (inputstore['run'] and len(inputstore['wf']) == 1
             and inputstore['rerun_his'] is None):
         # runs a single workflow composed of some modules
@@ -74,6 +75,7 @@ def run_workflow(inputstore, gi, runchain):
         runchain.extend(tasks.get_download_task_chain())
     elif inputstore['run'] and inputstore['rerun_his']:
         # runs one workflow with a history to reuse from
+        inputstore['current_wf'] = -1  # set -1: reuse_history will increment 
         inputstore['history'] = inputstore['rerun_his']
         inputstore['module_uuids'] = get_modules_for_workflow(
             inputstore['wf'][0]['modules'])
