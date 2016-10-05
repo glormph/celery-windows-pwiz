@@ -1,6 +1,8 @@
 import os
 import sys
 import json
+import re
+from collections import OrderedDict
 from datetime import datetime
 from time import sleep
 from bioblend import galaxy
@@ -110,7 +112,188 @@ def put_files_in_collection(dsets, inputstore):
 
 
 def get_searchname(inputstore):
-    return '{}_{}'.format(inputstore['base_searchname'], inputstore['searchtype'])
+    return '{}_{}'.format(inputstore['base_searchname'],
+                          inputstore['searchtype'])
+
+
+@app.task(queue=config.QUEUE_GALAXY_WORKFLOW, bind=True)
+def merge_percobatches_to_sets(self, inputstore):
+    """This tasks maps percobatches resulting from metafiles2pin and
+    percolator back to percolator sets."""
+    print('Running merge percolator step outside of galaxy workflow for {} in '
+          'history {}'.format(inputstore['searchname'], inputstore['history']))
+    gi = get_galaxy_instance(inputstore)
+    # get spectra collection, with elements to get names
+    specfiles = get_spectrafiles(gi, inputstore)
+    inputstore['percosetbatches'] = create_percolator_tasknr_batches(
+        specfiles, inputstore['params']['perco_ids'],
+        inputstore['params']['ppoolsize'])
+    # get split TD result collections
+    perco_t_col = gi.histories.show_dataset_collection(
+        inputstore['history'],
+        inputstore['datasets']['perco batch target']['id'])
+    perco_d_col = gi.histories.show_dataset_collection(
+        inputstore['history'],
+        inputstore['datasets']['perco batch decoy']['id'])
+    # Merge target and decoy separately
+    for tdname, percotd in zip(['percomerge target', 'percomerge decoy'],
+                               [perco_t_col, perco_d_col]):
+        merged = []
+        for setname in inputstore['params']['perco_ids']:
+            # create collection of batches to run merge on
+            setinfo = inputstore['percosetbatches']['psets'][setname]
+            pbatches = [el['object'] for el in percotd['elements']]
+            coldesc = {'collection_type': 'list', 'name': setname,
+                       'element_identifiers': [{'id': pbatches[batchn]['id'],
+                                                'name':
+                                                pbatches[batchn]['name'],
+                                                'src': 'hda'}
+                                               for batchn in
+                                               setinfo['batches']]}
+            batchcol = gi.histories.create_dataset_collection(
+                inputstore['history'], coldesc)
+            # Run merge tool and append merged JSON dataset
+            merged.append({'id': gi.tools.run_tool(
+                inputstore['history'], 'percolator_merge',
+                tool_inputs={'input': {'id': batchcol['id'],
+                                       'src': 'hdca'}})['outputs'][0]['id'],
+                           'src': 'hda', 'name': setname})
+        # Build collection of merged datasets
+        mergecoldesc = {'collection_type': 'list', 'name': tdname,
+                        'element_identifiers': merged}
+        mergecol = gi.histories.create_dataset_collection(
+            inputstore['history'], mergecoldesc)
+        inputstore['datasets'][tdname] = {'src': 'hdca', 'id': mergecol['id']}
+    return inputstore
+
+
+def get_collection_contents(gi, history, collection_id):
+    return gi.histories.show_dataset_collection(history,
+                                                collection_id)['elements']
+
+
+def get_spectrafiles(gi, inputstore):
+    spectra_col = get_collection_contents(
+        gi, inputstore['history'], inputstore['datasets']['spectra']['id'])
+    specfiles = [x['element_identifier'] for x in spectra_col]
+    return specfiles
+
+
+@app.task(queue=config.QUEUE_GALAXY_WORKFLOW, bind=True)
+def run_pout2mzid_on_sets(self, inputstore):
+    """Runs pout2mzid for each percolator set outside of workflow to avoid
+    having to do the perco-set /mzIdentML file correlation in a galaxy tool"""
+    print('Running pout2mzid step outside of galaxy workflow for {} in '
+          'history {}'.format(inputstore['searchname'], inputstore['history']))
+    gi = get_galaxy_instance(inputstore)
+    percolabels = ['perco recalc target', 'perco recalc decoy']
+    update_inputstore_from_history(gi, inputstore['datasets'], percolabels,
+                                   inputstore['history'], 'pout2mzid task')
+    percocols = [inputstore['datasets'][x] for x in percolabels]
+    specfiles = get_spectrafiles(gi, inputstore)
+    specfileppools = [get_filename_index_with_identifier(specfiles, p_id)
+                      for p_id in inputstore['params']['perco_ids']]
+    prepoutcols = {}
+    for td, perco_col in zip(['target', 'decoy'], percocols):
+        prepoutcols[td] = []
+        allmzidfiles = [x for x in get_collection_contents(
+            gi, inputstore['history'],
+            inputstore['datasets']['msgf {}'.format(td)]['id'])]
+        allpercofiles = [x for x in get_collection_contents(
+            gi, inputstore['history'], perco_col['id'])]
+        for count, (percout, ppool_index) in enumerate(zip(allpercofiles,
+                                                           specfileppools)):
+            mzids = [allmzidfiles[ix] for ix in ppool_index]
+            coldesc = {'name': 'msgf+ mzIdentML percopool {}'.format(count),
+                       'collection_type': 'list', 'element_identifiers':
+                       [{'id': mzds['object']['id'],
+                         'name': mzds['element_identifier'],
+                         'src': 'hda'} for mzds in mzids]}
+            mzidcol = gi.histories.create_dataset_collection(
+                inputstore['history'], coldesc)
+            poutinputs = {'percout': {'src': 'hda', 'id': percout['id']},
+                          'mzid|multifile': True,
+                          'mzid|mzids': {'src': 'hdca', 'id': mzidcol['id']},
+                          'targetdecoy': td, 'schemaskip': True}
+            prepoutcols[td].append(gi.tools.run_tool(
+                inputstore['history'], 'pout2mzid',
+                poutinputs)['output_collections'][0]['id'])
+    # wait until collections are ready
+    pout_ready = False
+    print('Waiting for pout2mzid to complete for search {} in history '
+          '{}'.format(inputstore['searchname'], inputstore['history']))
+    while not pout_ready:
+        pout_ready = True
+        for td in ['target', 'decoy']:
+            for poutcolid in prepoutcols[td]:
+                pcol = gi.histories.show_dataset_collection(
+                    inputstore['history'], poutcolid)
+                if not pcol['populated'] or pcol['populated_state'] != 'ok':
+                    pout_ready = False
+                    break
+        sleep(10)
+    # repackage pout2mzid set collections into one collection for all sets
+    # for both target and decoy
+    print('Repackaging pout2mzid collections for search {} in history '
+          '{}'.format(inputstore['searchname'], inputstore['history']))
+    for td in ['target', 'decoy']:
+        poutcol_els = []
+        for poutcolid in prepoutcols[td]:
+            poutcol_els.extend([{'src': 'hda', 'name': el['object']['name'],
+                                 'id': el['object']['id']}
+                                for el in gi.histories.show_dataset_collection(
+                                    inputstore['history'],
+                                    poutcolid)['elements']])
+        poutcolname = 'pout2mzid {}'.format(td)
+        poutcol = gi.histories.create_dataset_collection(
+            inputstore['history'], {'name': poutcolname,
+                                    'collection_type': 'list',
+                                    'element_identifiers': poutcol_els})
+        inputstore['datasets'][poutcolname]['id'] = poutcol['id']
+    return inputstore
+
+
+def get_filename_index_with_identifier(infiles, pool_id):
+    """Returns list of indices of infiles where the indices are of filenames
+    that regex-match to pool_id"""
+    pool_indices = []
+    for index, fn in enumerate(infiles):
+        if re.search(pool_id, fn) is not None:
+            pool_indices.append(index)
+    return pool_indices
+
+
+def create_percolator_tasknr_batches(filenames, ppool_ids, max_batchsize):
+    """For an amount of input files, pool identifiers and a max batch size,
+    return batches of files that can be percolated together"""
+    if ppool_ids:
+        filegroups = OrderedDict([(p_id, get_filename_index_with_identifier(
+                                   filenames, p_id))
+                                  for p_id in ppool_ids])
+    else:
+        filegroups = {1: range(len(filenames))}
+    # FIXME fix for when no ppool-ids
+    batch, count = [], 0
+    batch_pset_info = {'specfiles': {}, 'psets': {}}
+    for setname, grouped_indices in filegroups.items():
+        batch_pset_info['psets'][setname] = {'batches': []}
+        batch_pset_info['specfiles'].update({filenames[ix]: setname
+                                             for ix in grouped_indices})
+        if len(grouped_indices) > int(max_batchsize):
+            batchsize = int(max_batchsize)
+        else:
+            batchsize = len(grouped_indices)
+        for index in grouped_indices:
+            batch.append(index)
+            if len(batch) == int(batchsize):
+                batch_pset_info['psets'][setname]['batches'].append(count)
+                batch = []
+                count += 1
+        if len(batch) > 0:
+            batch_pset_info['psets'][setname]['batches'].append(count)
+            batch = []
+            count += 1
+    return batch_pset_info
 
 
 @app.task(queue=config.QUEUE_GALAXY_WORKFLOW, bind=True)
