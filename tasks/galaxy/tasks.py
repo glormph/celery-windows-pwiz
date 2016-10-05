@@ -21,27 +21,28 @@ def get_library_dsets(gi):
     for name, libtype in dset_names_libname.items():
         dsets = gi.libraries.show_library(galaxydata.libraries[libtype],
                                           contents=True)
-        print('Select a {} dataset from {}, or enter to skip'.format(name, 
+        print('Select a {} dataset from {}, or enter to skip'.format(name,
                                                                      libtype))
         print('--------------------')
         dsets = [x for x in dsets if x['type'] == 'file']
         for ix, dset in enumerate(dsets):
             print(ix, dset['name'])
-        while True: 
+        while True:
             pick = input('Enter selection: ')
             if pick == '':
                 break
             try:
                 pick = int(pick)
             except ValueError:
-                print('Please enter a number corresponding to a dataset or enter')
+                print('Please enter a number corresponding to a dataset or '
+                      'enter')
                 continue
             break
         if pick != '':
             output[name] = {'src': 'ld', 'id': dsets[pick]['id'],
                             'galaxy_name': dsets[pick]['name']}
     return output
-        
+
 
 @app.task(queue=config.QUEUE_GALAXY_TOOLS)
 def tmp_import_file_to_history(mzmlfile, inputstore):
@@ -302,7 +303,7 @@ def transfer_workflow_modules(self, inputstore):
           'to get latest updates')
     if inputstore['apikey'] == config.ADMIN_APIKEY:
         return inputstore
-    admin = {'galaxy_url': inputstore['galaxy_url'], 
+    admin = {'galaxy_url': inputstore['galaxy_url'],
              'apikey': config.ADMIN_APIKEY}
     gi_admin = get_galaxy_instance(admin)
     gi = get_galaxy_instance(inputstore)
@@ -314,11 +315,12 @@ def transfer_workflow_modules(self, inputstore):
             continue
         print('Getting workflow from admin: {}', wf['id'], wf['name'])
         wf_json = gi_admin.workflows.export_workflow_json(wf['id'])
-        wf_json['name'] = wf_json['name'].replace('(imported from API)', 
+        wf_json['name'] = wf_json['name'].replace('(imported from API)',
                                                   '').strip()
         gi.workflows.import_workflow_json(wf_json)
     return inputstore
-        
+
+
 @app.task(queue=config.QUEUE_GALAXY_WORKFLOW, bind=True)
 def reuse_history(self, inputstore):
     input_labels = inputstore['wf'][0]['rerun_rename_labels'].keys()
@@ -355,7 +357,7 @@ def run_workflow_module(self, inputstore, module_uuid):
     try:
         update_inputstore_from_history(gi, inputstore['datasets'],
                                        input_labels,
-                                       inputstore['history'], 
+                                       inputstore['history'],
                                        module['name'])
     except:
         self.retry(countdown=60)
@@ -378,11 +380,11 @@ def get_datasets_to_download(self, inputstore):
     print('Collecting dataset IDs to download')
     gi = get_galaxy_instance(inputstore)
     output_names = get_output_dsets(inputstore['wf'][inputstore['current_wf']])
-    download_dsets = {name: inputstore['datasets'][name] 
+    download_dsets = {name: inputstore['datasets'][name]
                       for name in output_names}
     for name, dl_dset in download_dsets.items():
         outname = '{}'.format(output_names[name])
-        outdir = '{}'.format(inputstore['searchname'].replace(' ' , '_'))
+        outdir = '{}'.format(inputstore['searchname'].replace(' ', '_'))
         dl_dset.update({'download_state': False, 'download_id': False,
                         'download_dest': os.path.join(inputstore['outshare'],
                                                       outdir, outname)})
@@ -399,7 +401,7 @@ def get_datasets_to_download(self, inputstore):
 
 @app.task(queue=config.QUEUE_GALAXY_WORKFLOW, bind=True)
 def wait_for_completion(self, inputstore):
-    """Waits for all output data to be finished before continuing with 
+    """Waits for all output data to be finished before continuing with
     download steps"""
     print('Wait for completion of datasets to download')
     workflow_ok = True
@@ -413,7 +415,8 @@ def wait_for_completion(self, inputstore):
             self.retry(countdown=60, exc=e)
         sleep(60)
     if workflow_ok:
-        print('Datasets ready for downloading in history {}'.format(inputstore['history']))
+        print('Datasets ready for downloading in history '
+              '{}'.format(inputstore['history']))
         return inputstore
     else:
         raise RuntimeError('Output datasets are in error or deleted state!')
@@ -471,8 +474,8 @@ def write_report(inputstore):
               'reused galaxy history': inputstore['rerun_his'],
               'datasets': inputstore['datasets'],
               }
-              
-    reportfile = os.path.join(inputstore['outshare'], 
+
+    reportfile = os.path.join(inputstore['outshare'],
                               inputstore['searchname'].replace(' ', '_'),
                               'report.json')
     with open(reportfile, 'w') as fp:
@@ -480,7 +483,7 @@ def write_report(inputstore):
 
 
 def initialize_datasets():
-    """(Re)fills inputstore with empty dict of datasets which are to be 
+    """(Re)fills inputstore with empty dict of datasets which are to be
     made by Galaxy"""
     inputs = {name: {'src': 'hda', 'id': None} for name in
               get_flatfile_names_inputstore()}
@@ -519,7 +522,7 @@ def check_dset_success(gi, dset_id):
                   '{}'.format(dset_id, dset_info['name'], dset_info['state']))
             return False
         elif dset_info['state'] == 'paused':
-            print('WARNING! Dataset {}: {} paused'.format(dset_id, 
+            print('WARNING! Dataset {}: {} paused'.format(dset_id,
                                                           dset_info['name']))
         else:
             print('Dataset {} not ready yet'.format(dset_id))
@@ -558,20 +561,21 @@ def dset_usable(dset):
         return True
 
 
-def update_inputstore_from_history(gi, datasets, dsetnames, history_id, modname):
+def update_inputstore_from_history(gi, datasets, dsetnames, history_id,
+                                   modname):
     print('Getting history contents')
     while not check_inputs_ready(datasets, dsetnames, modname):
         his_contents = gi.histories.show_history(history_id, contents=True,
                                                  deleted=False)
         for dset in his_contents:
-            if not dset_usable(dset): 
+            if not dset_usable(dset):
                 continue
             name = dset['name']
             if name in dsetnames and datasets[name]['id'] is None:
                 print('found dset {}'.format(name))
                 if datasets[name]['src'] == 'hdca':
-                    datasets[name]['id'] = get_collection_id_in_his(his_contents,
-                                                                      name, gi)
+                    datasets[name]['id'] = get_collection_id_in_his(
+                        his_contents, name, gi)
                 elif datasets[name]['src'] == 'hda':
                     datasets[name]['id'] = dset['id']
         sleep(10)
@@ -728,7 +732,8 @@ def run_prep_tools(gi, inputstore):
         expdata_inputs['pools_{}|set_identifier'.format(str(count))] = set_id
         expdata_inputs['pools_{}|set_name'.format(str(count))] = set_name
     for count, pp_id in enumerate(inputstore['params']['perco_ids']):
-        expdata_inputs['percopoolids_{}|ppool_identifier'.format(str(count))] = pp_id
+        param_name = 'percopoolids_{}|ppool_identifier'.format(str(count))
+        expdata_inputs[param_name] = pp_id
     print('Running sample pool tool')
     pooltool = gi.tools.get_tools(tool_id='experiment_data')[0]
     expdata = gi.tools.run_tool(inputstore['history'], pooltool['id'],
@@ -787,7 +792,6 @@ def get_collection_names_inputstore():
 
 
 def get_output_dsets(wf):
-    outnames = set(galaxydata.download_data_names).difference(wf['not_outputs'])
+    outnames = set(galaxydata.download_data_names).difference(
+        wf['not_outputs'])
     return {k: galaxydata.download_data_names[k] for k in outnames}
-
-
