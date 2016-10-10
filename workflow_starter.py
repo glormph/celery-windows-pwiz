@@ -78,6 +78,12 @@ def run_workflow(inputstore, gi, existing_spectra=False):
                         tasks.check_dsets_ok.s(), tasks.tmp_prepare_run.s()]
         else:
             runchain = [tasks.check_dsets_ok.s(inputstore), tasks.tmp_prepare_run.s()]
+        if inputstore['params']['filesassets']:
+            spectracollection = gi.histories.show_dataset_collection(
+                inputstore['history'], inputstore['datasets']['spectra']['id'])
+            sets = [x['object']['name'] for x in spectracollection['elements']]
+            inputstore['params']['setnames'] = sets
+            inputstore['params']['setpatterns'] = sets
         runchain.extend([tasks.run_workflow_module.s(mod_uuid[0])
                          for mod_uuid in inputstore['module_uuids']])
         runchain.extend(tasks.get_download_task_chain())

@@ -33,6 +33,8 @@ def parse_commandline(inputstore):
     #parser.add_argument('-m', dest='modifications')
     parser.add_argument('--name', dest='searchname')
     #parser.add_argument('--mart', dest='biomart_map')
+    parser.add_argument('--files-as-sets', dest='filesassets', default=False,
+                        action='store_const', const=True)
     parser.add_argument('--setnames', dest='setnames', nargs='+')
     parser.add_argument('--setpatterns', dest='setpatterns', nargs='+')
     parser.add_argument('--isobtype', dest='isobtype', default=None)
@@ -55,8 +57,13 @@ def parse_commandline(inputstore):
         parsename = name.replace(' ', '_')
         if hasattr(args, parsename) and getattr(args, parsename) is not None:
             inputstore['datasets'][name]['id'] = getattr(args, parsename)
+    if args.filesassets and (args.setnames is not None or
+                             args.setpatterns is not None):
+        print('Conflicting input, --files-as-sets has been passed but '
+              'also set definitions. Exiting.')
+        sys.exit(1)
     for param in ['setnames', 'setpatterns', 'isobtype', 'genefield',
-                  'perco_ids', 'ppoolsize', 'fastadelim']:
+                  'perco_ids', 'ppoolsize', 'fastadelim', 'filesassets']:
         if getattr(args, param) is not None:
             inputstore['params'][param] = getattr(args, param)
     if args.denominators is not None:
