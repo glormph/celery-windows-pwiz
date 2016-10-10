@@ -60,7 +60,7 @@ def get_modules_for_workflow(wf_mods):
     return [(galaxydata.wf_modules[m_name], m_name) for m_name in wf_mods]
 
 
-def run_workflow(inputstore, gi, runchain):
+def run_workflow(inputstore, gi, existing_spectra=False):
     """Runs a wf as specified in inputstore var"""
     inputstore['searchtype'] = inputstore['wf'][0]['searchtype']
     inputstore['searchname'] = tasks.get_searchname(inputstore)
@@ -72,27 +72,32 @@ def run_workflow(inputstore, gi, runchain):
             inputstore['wf'][0]['modules'])
         inputstore['g_modules'] = tasks.check_modules(
             gi, inputstore['module_uuids'])
-        runchain.extend([tasks.tmp_prepare_run.s()])
+        if inputstore['datasets']['spectra']['id'] is None:
+            runchain = [tasks.tmp_create_history.s(inputstore),
+                        tasks.tmp_put_files_in_collection.s(),
+                        tasks.check_dsets_ok.s(), tasks.tmp_prepare_run.s()]
+        else:
+            runchain = [tasks.check_dsets_ok.s(inputstore), tasks.tmp_prepare_run.s()]
         runchain.extend([tasks.run_workflow_module.s(mod_uuid[0])
                          for mod_uuid in inputstore['module_uuids']])
         runchain.extend(tasks.get_download_task_chain())
-    elif inputstore['run'] and len(inputstore['wf']) == 2:
-        # run two workflows with a history transition tool in between
-        inputstore['searchtype'] = inputstore['wf'][0]['searchtype']
-        firstwf_mods = get_modules_for_workflow(inputstore['wf'][0]['modules'])
-        second_wf_mods = get_modules_for_workflow(
-            inputstore['wf'][1]['modules'])
-        inputstore['module_uuids'] = firstwf_mods + second_wf_mods
-        inputstore['g_modules'] = tasks.check_modules(
-            gi, inputstore['module_uuids'])
-        runchain.extend([tasks.tmp_prepare_run.s()])
-        runchain.extend([tasks.run_workflow_module.s(mod_id[0])
-                         for mod_id in firstwf_mods])
-        runchain.extend(tasks.get_download_task_chain())
-        runchain.extend([tasks.reuse_history.s()])
-        runchain.extend([tasks.run_workflow_module.s(mod_id[0])
-                         for mod_id in second_wf_mods])
-        runchain.extend(tasks.get_download_task_chain())
+#    elif inputstore['run'] and len(inputstore['wf']) == 2:
+#        # run two workflows with a history transition tool in between
+#        inputstore['searchtype'] = inputstore['wf'][0]['searchtype']
+#        firstwf_mods = get_modules_for_workflow(inputstore['wf'][0]['modules'])
+#        second_wf_mods = get_modules_for_workflow(
+#            inputstore['wf'][1]['modules'])
+#        inputstore['module_uuids'] = firstwf_mods + second_wf_mods
+#        inputstore['g_modules'] = tasks.check_modules(
+#            gi, inputstore['module_uuids'])
+#        runchain.extend([tasks.tmp_prepare_run.s()])
+#        runchain.extend([tasks.run_workflow_module.s(mod_id[0])
+#                         for mod_id in firstwf_mods])
+#        runchain.extend(tasks.get_download_task_chain())
+#        runchain.extend([tasks.reuse_history.s()])
+#        runchain.extend([tasks.run_workflow_module.s(mod_id[0])
+#                         for mod_id in second_wf_mods])
+#        runchain.extend(tasks.get_download_task_chain())
     elif inputstore['run'] and inputstore['rerun_his']:
         # runs one workflow with a history to reuse from
         inputstore['current_wf'] = -1  # set -1: reuse_history will increment 
@@ -101,7 +106,11 @@ def run_workflow(inputstore, gi, runchain):
             inputstore['wf'][0]['modules'])
         inputstore['g_modules'] = tasks.check_modules(
             gi, inputstore['module_uuids'])
-        runchain.extend([tasks.reuse_history.s()])
+        runchain = [tasks.tmp_create_history.s(inputstore),
+                    tasks.reuse_history.s(inputstore['rerun_his']),
+                    tasks.tmp_put_files_in_collection.s(),
+                    tasks.check_dsets_ok.s(),
+                    ]
         runchain.extend([tasks.run_workflow_module.s(mod_id[0])
                          for mod_id in inputstore['module_uuids']])
         runchain.extend(tasks.get_download_task_chain())

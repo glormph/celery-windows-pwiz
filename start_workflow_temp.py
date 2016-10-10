@@ -16,11 +16,7 @@ def main():
     inputstore, gi = prep_workflow(parse_commandline)
     if inputstore['user'] != config.ADMIN_USER:
         inputstore = tasks.transfer_workflow_modules(inputstore)
-    runchain = [
-                tasks.tmp_create_history.s(inputstore),
-                tasks.tmp_put_files_in_collection.s(),
-                tasks.check_dsets_ok.s()]
-    run_workflow(inputstore, gi, runchain) 
+    run_workflow(inputstore, gi)
 
 
 def parse_commandline(inputstore):
