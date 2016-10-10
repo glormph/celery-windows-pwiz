@@ -14,7 +14,8 @@ TESTING_NO_CLEANUP = True
 
 def main():
     inputstore, gi = prep_workflow(parse_commandline)
-    inputstore = tasks.transfer_workflow_modules(inputstore)
+    if inputstore['user'] != config.ADMIN_USER:
+        inputstore = tasks.transfer_workflow_modules(inputstore)
     runchain = [
                 tasks.tmp_create_history.s(inputstore),
                 tasks.tmp_put_files_in_collection.s(),
