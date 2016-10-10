@@ -100,8 +100,7 @@ def run_workflow(inputstore, gi, existing_spectra=False):
 #        runchain.extend(tasks.get_download_task_chain())
     elif inputstore['run'] and inputstore['rerun_his']:
         # runs one workflow with a history to reuse from
-        inputstore['current_wf'] = -1  # set -1: reuse_history will increment 
-        inputstore['history'] = inputstore['rerun_his']
+        inputstore['current_wf'] = 0  # This variable may not be necessary?
         inputstore['module_uuids'] = get_modules_for_workflow(
             inputstore['wf'][0]['modules'])
         inputstore['g_modules'] = tasks.check_modules(

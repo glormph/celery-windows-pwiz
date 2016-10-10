@@ -322,29 +322,25 @@ def transfer_workflow_modules(self, inputstore):
 
 
 @app.task(queue=config.QUEUE_GALAXY_WORKFLOW, bind=True)
-def reuse_history(self, inputstore):
+def reuse_history(self, inputstore, reuse_history_id):
     input_labels = inputstore['wf'][0]['rerun_rename_labels'].keys()
     print('Checking reusable other history for datasets for '
           'input steps {}'.format(input_labels))
-    inputstore['searchname'] = get_searchname(inputstore)
     # TODO launch download chain in this task on old history, so user will
     # not have to wait for download before new search is run. Useful in case
     # long slow downloads.
     gi = get_galaxy_instance(inputstore)
     try:
         update_inputstore_from_history(gi, inputstore['datasets'],
-                                       input_labels, inputstore['history'],
+                                       input_labels, reuse_history_id,
                                        'reuse_history')
-        create_history(inputstore, gi)
     except Exception as e:
         self.retry(countdown=60, exc=e)
     reuse_datasets = {}
-    for label, newlabel in inputstore['wf'][0]['rerun_rename_labels'].items():
+    for label, newlabel in inputstore['wf'][inputstore['current_wf']]['rerun_rename_labels'].items()
         if newlabel:
             reuse_datasets[newlabel] = inputstore['datasets'].pop(label)
-    inputstore['datasets'] = initialize_datasets()
     inputstore['datasets'].update(reuse_datasets)
-    inputstore['current_wf'] += 1
     return inputstore
 
 
@@ -678,6 +674,8 @@ def create_history(inputstore, gi):
     print('Creating new history for: {}'.format(inputstore['searchname']))
     history = gi.histories.create_history(name=inputstore['searchname'])
     inputstore['history'] = history['id']
+    if 'wf' in inputstore:
+        inputstore['wf'][inputstore['current_wf']]['history'] = history['id']
 
 
 @app.task(queue=config.QUEUE_GALAXY_WORKFLOW, bind=True)
