@@ -365,8 +365,11 @@ def run_workflow_module(self, inputstore, module_uuid):
         gi.workflows.invoke_workflow(module['id'], inputs=mod_inputs,
                                      params=mod_params,
                                      history_id=inputstore['history'])
-    except:
-        self.retry(countdown=60)
+    except Exception as e:
+        # Workflows are invoked so requests are fast, no significant
+        # risk for timeouts
+        print('Problem, retrying, error was {}'.format(e))
+        self.retry(countdown=60, exc=e)
     print('Workflow invoked')
     return inputstore
 
