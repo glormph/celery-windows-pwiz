@@ -571,7 +571,7 @@ def update_inputstore_from_history(gi, datasets, dsetnames, history_id,
                 print('found dset {}'.format(name))
                 if datasets[name]['src'] == 'hdca':
                     datasets[name]['id'] = get_collection_id_in_his(
-                        his_contents, name, gi)
+                        his_contents, name, dset['id'], gi)
                 elif datasets[name]['src'] == 'hda':
                     datasets[name]['id'] = dset['id']
         sleep(10)
@@ -621,8 +621,9 @@ def check_and_fill_runtime_param(input_val, name, modstep, parammap,
             fill_runtime_param(parammap, inputstore, name, modstep)
 
 
-def get_collection_id_in_his(his_contents, name, gi):
-    print('Trying to find collection ID belonging to dataset {}'.format(name))
+def get_collection_id_in_his(his_contents, name, named_dset_id, gi):
+    print('Trying to find collection ID belonging to dataset {} '
+          'and ID {}'.format(name, named_dset_id))
     labelfound = False
     for dset in his_contents:
         if dset['name'] == name:
@@ -630,7 +631,7 @@ def get_collection_id_in_his(his_contents, name, gi):
         if labelfound and dset['type'] == 'collection':
             dcol = gi.histories.show_dataset_collection(dset['history_id'],
                                                         dset['id'])
-            if set([x['object']['name'] for x in dcol['elements']]) == {name}:
+            if named_dset_id in [x['object']['id'] for x in dcol['elements']]:
                 print('Correct, using {} id {}'.format(dset['name'],
                                                        dset['id']))
                 return dset['id']
