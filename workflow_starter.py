@@ -56,9 +56,20 @@ def get_workflows():
     return galaxydata.workflows
 
 
-def get_modules_for_workflow(wf_mods):
-    return [(galaxydata.wf_modules[m_name], m_name) for m_name in wf_mods]
+def get_modules_and_tasks(wf_index, inputstore):
+    runchain = []
+    moduuids = {mname: muuid for muuid, mname in inputstore['module_uuids']}
+    for modname in inputstore['wf'][wf_index]['modules']:
+        if modname[0] == '@':
+            runchain.append(tasks.nonwf_galaxy_tasks[modname].s())
+        else:
+            runchain.append(tasks.run_workflow_module.s(moduuids[modname]))
+    return runchain
 
+
+def get_modules_for_workflow(wf_mods):
+    return [(galaxydata.wf_modules[m_name], m_name) for m_name in wf_mods if m_name[0] != '@']
+        
 
 def run_workflow(inputstore, gi, existing_spectra=False):
     """Runs a wf as specified in inputstore var"""
@@ -84,8 +95,8 @@ def run_workflow(inputstore, gi, existing_spectra=False):
             sets = [x['object']['name'] for x in spectracollection['elements']]
             inputstore['params']['setnames'] = sets
             inputstore['params']['setpatterns'] = sets
-        runchain.extend([tasks.run_workflow_module.s(mod_uuid[0])
-                         for mod_uuid in inputstore['module_uuids']])
+        runchain.extend(get_modules_and_tasks(inputstore['current_wf'], 
+                        inputstore))
         runchain.extend(tasks.get_download_task_chain())
 #    elif inputstore['run'] and len(inputstore['wf']) == 2:
 #        # run two workflows with a history transition tool in between
