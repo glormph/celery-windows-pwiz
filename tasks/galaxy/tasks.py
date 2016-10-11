@@ -130,6 +130,10 @@ def merge_percobatches_to_sets(self, inputstore):
         specfiles, inputstore['params']['perco_ids'],
         inputstore['params']['ppoolsize'])
     # get split TD result collections
+    update_inputstore_from_history(gi, inputstore['datasets'], 
+                                   ['perco batch target', 'perco batch decoy'],
+                                   inputstore['history'], 
+                                   'merge percolator task')
     perco_t_col = gi.histories.show_dataset_collection(
         inputstore['history'],
         inputstore['datasets']['perco batch target']['id'])
@@ -137,17 +141,17 @@ def merge_percobatches_to_sets(self, inputstore):
         inputstore['history'],
         inputstore['datasets']['perco batch decoy']['id'])
     # Merge target and decoy separately
-    for tdname, percotd in zip(['percomerge target', 'percomerge decoy'],
+    for tdname, percotd in zip(['percolator pretarget', 'percolator predecoy'],
                                [perco_t_col, perco_d_col]):
         merged = []
         for setname in inputstore['params']['perco_ids']:
             # create collection of batches to run merge on
             setinfo = inputstore['percosetbatches']['psets'][setname]
-            pbatches = [el['object'] for el in percotd['elements']]
+            pbatches = [el for el in percotd['elements']]
             coldesc = {'collection_type': 'list', 'name': setname,
-                       'element_identifiers': [{'id': pbatches[batchn]['id'],
+                       'element_identifiers': [{'id': pbatches[batchn]['object']['id'],
                                                 'name':
-                                                pbatches[batchn]['name'],
+                                                pbatches[batchn]['element_identifier'],
                                                 'src': 'hda'}
                                                for batchn in
                                                setinfo['batches']]}
@@ -205,14 +209,15 @@ def run_pout2mzid_on_sets(self, inputstore):
         for count, (percout, ppool_index) in enumerate(zip(allpercofiles,
                                                            specfileppools)):
             mzids = [allmzidfiles[ix] for ix in ppool_index]
-            coldesc = {'name': 'msgf+ mzIdentML percopool {}'.format(count),
+            coldesc = {'name': 'msgf+ mzIdentML {} ppool {}'.format(td, count),
                        'collection_type': 'list', 'element_identifiers':
                        [{'id': mzds['object']['id'],
                          'name': mzds['element_identifier'],
                          'src': 'hda'} for mzds in mzids]}
             mzidcol = gi.histories.create_dataset_collection(
                 inputstore['history'], coldesc)
-            poutinputs = {'percout': {'src': 'hda', 'id': percout['id']},
+            poutinputs = {'percout': {'src': 'hda', 
+                                      'id': percout['object']['id']},
                           'mzid|multifile': True,
                           'mzid|mzids': {'src': 'hdca', 'id': mzidcol['id']},
                           'targetdecoy': td, 'schemaskip': True}
@@ -240,7 +245,7 @@ def run_pout2mzid_on_sets(self, inputstore):
     for td in ['target', 'decoy']:
         poutcol_els = []
         for poutcolid in prepoutcols[td]:
-            poutcol_els.extend([{'src': 'hda', 'name': el['object']['name'],
+            poutcol_els.extend([{'src': 'hda', 'name': el['element_identifier'],
                                  'id': el['object']['id']}
                                 for el in gi.histories.show_dataset_collection(
                                     inputstore['history'],
