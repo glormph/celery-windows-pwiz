@@ -725,32 +725,20 @@ def prepare_run(self, inputstore, is_workflow=True):
 
 
 def run_prep_tools(gi, inputstore):
-    """Runs expdata (to be deprecated) and mslookup spectra. Not in normal WF
-    because they need a repeat param setnames passed to them, not yet possible
+    """Runs mslookup spectra. Not in normal WF
+    because needs repeat param setnames passed to them, not yet possible
     to call on WF API"""
     spectra = {'src': 'hdca', 'id': inputstore['datasets']['spectra']['id']}
-    expdata_inputs = {'percopoolsize': inputstore['params']['ppoolsize'],
-                      'spectra': spectra}
-    if 'isobtype' in inputstore['params']:
-        expdata_inputs['isoquant'] = inputstore['params']['isobtype']
+    set_inputs = {'spectra': spectra}
     for count, (set_id, set_name) in enumerate(
             zip(inputstore['params']['setpatterns'],
                 inputstore['params']['setnames'])):
-        expdata_inputs['pools_{}|set_identifier'.format(str(count))] = set_id
-        expdata_inputs['pools_{}|set_name'.format(str(count))] = set_name
-    for count, pp_id in enumerate(inputstore['params']['perco_ids']):
-        param_name = 'percopoolids_{}|ppool_identifier'.format(str(count))
-        expdata_inputs[param_name] = pp_id
-    print('Running sample pool tool')
-    pooltool = gi.tools.get_tools(tool_id='experiment_data')[0]
-    expdata = gi.tools.run_tool(inputstore['history'], pooltool['id'],
-                                tool_inputs=expdata_inputs)['outputs'][0]
-    gi.histories.update_dataset(expdata['history_id'], expdata['id'],
-                                name='expdata')
-    print('Running lookup spectra tool')
+        set_inputs['pools_{}|set_identifier'.format(count)] = set_id
+        set_inputs['pools_{}|set_name'.format(count)] = set_name
     mslookuptool = gi.tools.get_tools(tool_id='mslookup_spectra')[0]
+    print('Running lookup spectra tool')
     speclookup = gi.tools.run_tool(inputstore['history'], mslookuptool['id'],
-                                   tool_inputs=expdata_inputs)['outputs'][0]
+                                   tool_inputs=set_inputs)['outputs'][0]
     gi.histories.update_dataset(speclookup['history_id'], speclookup['id'],
                                 name='spectra lookup')
 
