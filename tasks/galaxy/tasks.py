@@ -118,6 +118,30 @@ def get_searchname(inputstore):
 
 
 @app.task(queue=config.QUEUE_GALAXY_WORKFLOW, bind=True)
+def run_metafiles2pin(self, inputstore):
+    """Metafile2pin contains a repeat param which cannot be accessed
+    in the WF API and also not in the tool API (latter due to a suspected
+    bug."""
+    print('Running metafiles2pin')
+    gi = get_galaxy_instance(inputstore)
+    tool_inputs = {'percopoolsize': inputstore['params']['ppoolsize']}
+    for count, pp_id in enumerate(inputstore['params']['perco_ids']):
+        param_name = 'percopoolids_{}|ppool_identifier'.format(count)
+        tool_inputs[param_name] = pp_id
+    td_meta = {}
+    for td in ['target', 'decoy']:
+        tool_inputs['searchresult'] = inputstore['datasets'][
+            'msgf {}'.format(td)]
+        td_meta[td] = [gi.tools.run_tool(
+            inputstore['history'], 'metafiles2pin_ts',
+            tool_inputs=tool_inputs)['output_collections'][0]['id']]
+    for td in ['target', 'decoy']:
+        wait_for_dynamic_collection('metafiles2pin', gi, inputstore, td_meta[td])
+        inputstore['datasets']['percometa {}'.format(td)]['id'] = td_meta[td][0]
+    return inputstore
+
+
+@app.task(queue=config.QUEUE_GALAXY_WORKFLOW, bind=True)
 def merge_percobatches_to_sets(self, inputstore):
     """This tasks maps percobatches resulting from metafiles2pin and
     percolator back to percolator sets."""
@@ -515,6 +539,23 @@ def check_outputs_workflow_ok(gi, inputstore):
     return True
 
 
+def wait_for_dynamic_collection(toolname, gi, inputstore, pre_cols):
+    print('Waiting for {} to complete for search {} in history '
+          '{}'.format(toolname, inputstore['searchname'], inputstore['history']))
+    col_ready = False
+    while not col_ready:
+        col_ready = True
+        #for td in ['target', 'decoy']:
+        for col_id in pre_cols:
+            collection = gi.histories.show_dataset_collection(
+                inputstore['history'], col_id)
+            if (not collection['populated'] or 
+                    collection['populated_state'] != 'ok'):
+                col_ready = False
+                break
+        sleep(10)
+
+
 def check_dset_success(gi, dset_id):
         dset_info = gi.datasets.show_dataset(dset_id)
         if dset_info['state'] == 'ok' and not dset_info['deleted']:
@@ -794,4 +835,5 @@ def get_output_dsets(wf):
 
 nonwf_galaxy_tasks = {'@pout2mzid': run_pout2mzid_on_sets,
                       '@mergepercolator': merge_percobatches_to_sets,
+                      '@metafiles2pin': run_metafiles2pin,
                       }
