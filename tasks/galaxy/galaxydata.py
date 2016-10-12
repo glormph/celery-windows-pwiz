@@ -76,6 +76,10 @@ download_data_names = {'pout2mzid target tar': 'mzidentml.tar.gz',
                        }
 
 collection_names = ['spectra',
+                    'prefrac db target',
+                    'prefrac db decoy',
+                    'spectra target db',
+                    'spectra decoy db',
                     'msgf target',
                     'msgf decoy',
                     'msgf tsv target',

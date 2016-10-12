@@ -67,6 +67,38 @@ def import_file_to_history(mzmlfile_id, mzmlfile, inputstore):
 
 
 @app.task(queue=config.QUEUE_GALAXY_TOOLS)
+def create_spectra_db_pairedlist(inputstore):
+    gi = get_galaxy_instance(inputstore)
+    # have both dbs ready, do not want to create decoys for pI separated stuff
+    dsets = inputstore['datasets']
+    speccol = get_collection_contents(gi, inputstore['history'],
+                                      dsets['spectra']['id'])
+    for td in ['target', 'decoy']:
+        dbname = 'prefrac db {}'.format(td)
+        dsets[dbname]['id'] = dsets['{} db'.format(td)]['id']
+        specname_id = ((x['element_identifier'], x['object']['id'])
+                       for x in speccol)
+        dbname_id = ((x['element_identifier'], x['object']['id'])
+                     for x in get_collection_contents(gi, inputstore['history'],
+                                                      dsets[dbname]['id']))
+        colname = 'spectra {} db'.format(td)
+        elements = [{'name': '{}_{}'.format(sname, dname),
+                     'collection_type': 'paired', 'src': 'new_collection',
+                     'element_identifiers': [{'name': 'forward', 'id': sid, 
+                                              'src': 'hda'},
+                                             {'name': 'reverse', 'id': did, 
+                                              'src': 'hda'}]} 
+                                             for (sname, sid), (dname, did)
+                                             in zip(specname_id, dbname_id)]
+        collection = gi.histories.create_dataset_collection(
+            inputstore['history'], {'name': colname, 
+                                    'collection_type': 'list:paired',
+                                    'element_identifiers': elements})
+        dsets[colname] = {'src': 'hdca', 'id': collection['id']}
+    return inputstore
+
+
+@app.task(queue=config.QUEUE_GALAXY_TOOLS)
 def tmp_put_files_in_collection(inputstore):
     print('Putting files from source histories {} in collection in search '
           'history {}'.format(inputstore['sourcehis'], inputstore['history']))
