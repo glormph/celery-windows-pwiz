@@ -117,7 +117,6 @@ def run_workflow(inputstore, gi, existing_spectra=False):
 #        runchain.extend(tasks.get_download_task_chain())
     elif inputstore['run'] and inputstore['rerun_his']:
         # runs one workflow with a history to reuse from
-        inputstore['current_wf'] = 0  # This variable may not be necessary?
         inputstore['module_uuids'] = get_modules_for_workflow(
             inputstore['wf'][0]['modules'])
         inputstore['g_modules'] = tasks.check_modules(
@@ -127,8 +126,8 @@ def run_workflow(inputstore, gi, existing_spectra=False):
                     tasks.tmp_put_files_in_collection.s(),
                     tasks.check_dsets_ok.s(),
                     ]
-        runchain.extend([tasks.run_workflow_module.s(mod_id[0])
-                         for mod_id in inputstore['module_uuids']])
+        runchain.extend(get_modules_and_tasks(inputstore['current_wf'], 
+                        inputstore))
         runchain.extend(tasks.get_download_task_chain())
     else:
         print('Not quite clear what you are trying to do here, '
