@@ -132,12 +132,12 @@ def run_metafiles2pin(self, inputstore):
     for td in ['target', 'decoy']:
         tool_inputs['searchresult'] = inputstore['datasets'][
             'msgf {}'.format(td)]
-        td_meta[td] = [gi.tools.run_tool(
+        td_meta[td] = gi.tools.run_tool(
             inputstore['history'], 'metafiles2pin_ts',
-            tool_inputs=tool_inputs)['output_collections'][0]['id']]
+            tool_inputs=tool_inputs)['output_collections'][0]['id']
     for td in ['target', 'decoy']:
         wait_for_dynamic_collection('metafiles2pin', gi, inputstore, td_meta[td])
-        inputstore['datasets']['percometa {}'.format(td)]['id'] = td_meta[td][0]
+        inputstore['datasets']['percometa {}'.format(td)]['id'] = td_meta[td]
     return inputstore
 
 
@@ -249,19 +249,9 @@ def run_pout2mzid_on_sets(self, inputstore):
                 inputstore['history'], 'pout2mzid',
                 poutinputs)['output_collections'][0]['id'])
     # wait until collections are ready
-    pout_ready = False
-    print('Waiting for pout2mzid to complete for search {} in history '
-          '{}'.format(inputstore['searchname'], inputstore['history']))
-    while not pout_ready:
-        pout_ready = True
-        for td in ['target', 'decoy']:
-            for poutcolid in prepoutcols[td]:
-                pcol = gi.histories.show_dataset_collection(
-                    inputstore['history'], poutcolid)
-                if not pcol['populated'] or pcol['populated_state'] != 'ok':
-                    pout_ready = False
-                    break
-        sleep(10)
+    for td in ['target', 'decoy']:
+        for prepoutcol in prepoutcols[pd]:
+            wait_for_dynamic_collection('pout2mzid', gi, inputstore, prepoutcol)
     # repackage pout2mzid set collections into one collection for all sets
     # for both target and decoy
     print('Repackaging pout2mzid collections for search {} in history '
@@ -539,20 +529,15 @@ def check_outputs_workflow_ok(gi, inputstore):
     return True
 
 
-def wait_for_dynamic_collection(toolname, gi, inputstore, pre_cols):
+def wait_for_dynamic_collection(toolname, gi, inputstore, col_id):
     print('Waiting for {} to complete for search {} in history '
           '{}'.format(toolname, inputstore['searchname'], inputstore['history']))
-    col_ready = False
-    while not col_ready:
-        col_ready = True
-        #for td in ['target', 'decoy']:
-        for col_id in pre_cols:
-            collection = gi.histories.show_dataset_collection(
-                inputstore['history'], col_id)
-            if (not collection['populated'] or 
-                    collection['populated_state'] != 'ok'):
-                col_ready = False
-                break
+    while True:
+        collection = gi.histories.show_dataset_collection(
+            inputstore['history'], col_id)
+        if (not collection['populated'] or 
+                collection['populated_state'] != 'ok'):
+            break
         sleep(10)
 
 
