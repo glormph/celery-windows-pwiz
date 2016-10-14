@@ -156,6 +156,9 @@ def run_metafiles2pin(self, inputstore):
     bug."""
     print('Running metafiles2pin')
     gi = get_galaxy_instance(inputstore)
+    update_inputstore_from_history(gi, inputstore['datasets'],
+                                   ['msgf target', 'msgf decoy'], 
+                                   inputstore['history'], 'metafiles2pin task')
     tool_inputs = {'percopoolsize': inputstore['params']['ppoolsize']}
     for count, pp_id in enumerate(inputstore['params']['perco_ids']):
         param_name = 'percopoolids_{}|ppool_identifier'.format(count)
