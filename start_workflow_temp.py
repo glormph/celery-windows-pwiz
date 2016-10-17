@@ -29,10 +29,9 @@ def parse_commandline(inputstore):
     parser.add_argument('--reuse-history', dest='reuse_history')
     parser.add_argument('-w', dest='analysisnr', type=int, nargs=True)
     parser.add_argument('--sourcehists', dest='sourcehistories', nargs='+')
-    #parser.add_argument('-d', dest='target_db')
-    #parser.add_argument('-m', dest='modifications')
+    parser.add_argument('--target-fracdb', dest='prefrac_db_target', nargs='+')
+    parser.add_argument('--decoy-fracdb', dest='prefrac_db_decoy', nargs='+')
     parser.add_argument('--name', dest='searchname')
-    #parser.add_argument('--mart', dest='biomart_map')
     parser.add_argument('--files-as-sets', dest='filesassets', default=False,
                         action='store_const', const=True)
     parser.add_argument('--setnames', dest='setnames', nargs='+')
@@ -54,6 +53,8 @@ def parse_commandline(inputstore):
     else:
         inputstore['run'] = True
     for name in inputstore['datasets']:
+        if name in tasks.get_multidset_names_inputstore():
+            continue
         parsename = name.replace(' ', '_')
         if hasattr(args, parsename) and getattr(args, parsename) is not None:
             inputstore['datasets'][name]['id'] = getattr(args, parsename)
@@ -62,6 +63,11 @@ def parse_commandline(inputstore):
         print('Conflicting input, --files-as-sets has been passed but '
               'also set definitions. Exiting.')
         sys.exit(1)
+    for name in tasks.get_multidset_names_inputstore():
+        parsename = name.replace(' ', '_')
+        if hasattr(args, parsename) and getattr(args, parsename) is not None:
+            inputstore['datasets'][name].append({'src': 'hdca', 
+                                                 'id': getattr(args, parsename)})
     for param in ['setnames', 'setpatterns', 'isobtype', 'genefield',
                   'perco_ids', 'ppoolsize', 'fastadelim', 'filesassets']:
         if getattr(args, param) is not None:

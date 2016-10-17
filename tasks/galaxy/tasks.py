@@ -68,28 +68,36 @@ def import_file_to_history(mzmlfile_id, mzmlfile, inputstore):
 
 @app.task(queue=config.QUEUE_GALAXY_TOOLS)
 def create_spectra_db_pairedlist(inputstore):
+    print('Creating paired list of spectra and prefractionated DB')
     gi = get_galaxy_instance(inputstore)
     # have both dbs ready, do not want to create decoys for pI separated stuff
     dsets = inputstore['datasets']
     speccol = get_collection_contents(gi, inputstore['history'],
                                       dsets['spectra']['id'])
+    def get_coll_name_id(collection):
+        return ((x['element_identifier'], x['object']['id']) 
+                for x in collection)
     for td in ['target', 'decoy']:
-        dbname = 'prefrac db {}'.format(td)
-        dsets[dbname]['id'] = dsets['{} db'.format(td)]['id']
-        specname_id = ((x['element_identifier'], x['object']['id'])
-                       for x in speccol)
-        dbname_id = ((x['element_identifier'], x['object']['id'])
-                     for x in get_collection_contents(gi, inputstore['history'],
-                                                      dsets[dbname]['id']))
+        pidbcol = {pipat: get_collection_contents(gi, inputstore['history'], x['id'])
+                   for pipat, x in zip(inputstore['params']['pipatterns'], 
+                                       dsets['prefrac db {}'.format(td)])}
+        elements = [] 
+        for set_id in inputstore['params']['setpatterns']:
+            set_spec = [speccol[y] for y in get_filename_index_with_identifier(
+                [x['element_identifier'] for x in speccol], set_id)]
+            for pipattern in inputstore['params']['pipatterns']:
+                pispec = [set_spec[y] for y in get_filename_index_with_identifier(
+                    [x['element_identifier'] for x in set_spec], pipattern)]
+                elements.extend(
+                    [{'name': '{}_pIDB_{}'.format(sname, dname),
+                      'collection_type': 'paired', 'src': 'new_collection',
+                      'element_identifiers': [{'name': 'forward', 'id': sid, 
+                                               'src': 'hda'},
+                                              {'name': 'reverse', 'id': did,
+                                               'src': 'hda'}]} 
+                     for (sname, sid), (dname, did)
+                     in zip(get_coll_name_id(pispec), get_coll_name_id(pidbcol[pipattern]))])
         colname = 'spectra {} db'.format(td)
-        elements = [{'name': '{}_{}'.format(sname, dname),
-                     'collection_type': 'paired', 'src': 'new_collection',
-                     'element_identifiers': [{'name': 'forward', 'id': sid, 
-                                              'src': 'hda'},
-                                             {'name': 'reverse', 'id': did, 
-                                              'src': 'hda'}]} 
-                                             for (sname, sid), (dname, did)
-                                             in zip(specname_id, dbname_id)]
         collection = gi.histories.create_dataset_collection(
             inputstore['history'], {'name': colname, 
                                     'collection_type': 'list:paired',
@@ -542,6 +550,7 @@ def initialize_datasets():
               get_flatfile_names_inputstore()}
     inputs.update({name: {'src': 'hdca', 'id': None} for name in
                    get_collection_names_inputstore()})
+    inputs.update({name: [] for name in get_multidset_names_inputstore()})
     return inputs
 
 
@@ -844,6 +853,10 @@ def get_flatfile_names_inputstore():
 
 
 def get_collection_names_inputstore():
+    return galaxydata.collection_names
+
+
+def get_multidset_names_inputstore():
     return galaxydata.collection_names
 
 

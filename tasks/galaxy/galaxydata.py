@@ -75,9 +75,10 @@ download_data_names = {'pout2mzid target tar': 'mzidentml.tar.gz',
                        'symbol table': 'symbol_table.txt',
                        }
 
+# these are collections, make a new category for the multidset-non-collections
+multidset_names = ['prefrac db target', 'prefrac db decoy']
+
 collection_names = ['spectra',
-                    'prefrac db target',
-                    'prefrac db decoy',
                     'spectra target db',
                     'spectra decoy db',
                     'msgf target',
