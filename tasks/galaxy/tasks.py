@@ -399,7 +399,7 @@ def reuse_history(self, inputstore, reuse_history_id):
     except Exception as e:
         self.retry(countdown=60, exc=e)
     reuse_datasets = {}
-    for label, newlabel in inputstore['wf'][inputstore['current_wf']]['rerun_rename_labels'].items()
+    for label, newlabel in inputstore['wf'][inputstore['current_wf']]['rerun_rename_labels'].items():
         if newlabel:
             reuse_datasets[newlabel] = inputstore['datasets'].pop(label)
     inputstore['datasets'].update(reuse_datasets)
