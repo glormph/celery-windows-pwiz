@@ -78,6 +78,7 @@ def create_spectra_db_pairedlist(inputstore):
         return ((x['element_identifier'], x['object']['id']) 
                 for x in collection)
     for td in ['target', 'decoy']:
+        # FIXME need piDB for each strip AND set with own shift
         pidbcol = {pipat: get_collection_contents(gi, inputstore['history'], x['id'])
                    for pipat, x in zip(inputstore['params']['pipatterns'], 
                                        dsets['prefrac db {}'.format(td)])}
@@ -405,6 +406,23 @@ def reuse_history(self, inputstore, reuse_history_id):
     inputstore['datasets'].update(reuse_datasets)
     return inputstore
 
+
+@app.task(queue=config.QUEUE_GALAXY_TOOLS)
+def create_6rf_split_dbs(inputstore):
+    print('Creating 6RF split DB')
+    gi = get_galaxy_instance(inputstore)
+    mod_inputs = get_input_map(module, inputstore['datasets'])
+    for strip in inputstore['params']['strips']:
+        stripname, setshifts = strip.split(':')
+        for setname, shift in zip(inputstore['params']['setnames'], setshifts):
+            params = {'6rf_splitter': {'strip': stripname, 'shift': shift}
+            replace = {'newname': '{}::{}'.format(setname, stripname)
+            gi.workflows.invoke_workflow(galaxydata.wf_modules['6rf_split'], 
+                                         inputs=mod_inputs, params=params,
+                                         history_id=inputstore['history'] 
+                                         replacement_params=replace)
+    # wait for all datasets to finish by detecting replacemenet name
+    
 
 @app.task(queue=config.QUEUE_GALAXY_WORKFLOW, bind=True)
 def run_workflow_module(self, inputstore, module_uuid):

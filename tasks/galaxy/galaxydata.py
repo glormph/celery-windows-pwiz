@@ -103,6 +103,7 @@ collection_names = ['spectra',
 
 flatfile_names = ['target db',
                   'decoy db',
+                  'pipeptides db',
                   'knownpep db',
                   'biomart map',
                   'spectra lookup',

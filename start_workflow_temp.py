@@ -29,8 +29,6 @@ def parse_commandline(inputstore):
     parser.add_argument('--reuse-history', dest='reuse_history')
     parser.add_argument('-w', dest='analysisnr', type=int, nargs=True)
     parser.add_argument('--sourcehists', dest='sourcehistories', nargs='+')
-    parser.add_argument('--target-fracdb', dest='prefrac_db_target', nargs='+')
-    parser.add_argument('--decoy-fracdb', dest='prefrac_db_decoy', nargs='+')
     parser.add_argument('--name', dest='searchname')
     parser.add_argument('--files-as-sets', dest='filesassets', default=False,
                         action='store_const', const=True)
@@ -38,6 +36,10 @@ def parse_commandline(inputstore):
     parser.add_argument('--setpatterns', dest='setpatterns', nargs='+')
     parser.add_argument('--isobtype', dest='isobtype', default=None)
     parser.add_argument('--denominators', dest='denominators', nargs='+')
+    parser.add_argument('--pipatterns', dest='pipatterns', nargs='+')
+    parser.add_argument('--strips-shifts', dest='strips', nargs='+',
+                        help='Specify STRIPNAME:SHIFT,SHIFT,SHIFT for each set'
+    parser.add_argument('--pipeptides', dest='pipeptides_db')
     parser.add_argument('--ppool-ids', dest='perco_ids', nargs='+')
     parser.add_argument('--ppool-size', dest='ppoolsize', default=8)
     parser.add_argument('--fastadelim', dest='fastadelim', type=str)
@@ -69,7 +71,8 @@ def parse_commandline(inputstore):
             inputstore['datasets'][name].append({'src': 'hdca', 
                                                  'id': getattr(args, parsename)})
     for param in ['setnames', 'setpatterns', 'isobtype', 'genefield',
-                  'perco_ids', 'ppoolsize', 'fastadelim', 'filesassets']:
+                  'perco_ids', 'ppoolsize', 'fastadelim', 'filesassets',
+                  'strips', 'pipatterns']:
         if getattr(args, param) is not None:
             inputstore['params'][param] = getattr(args, param)
     if args.denominators is not None:
