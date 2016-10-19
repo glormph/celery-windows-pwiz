@@ -738,7 +738,9 @@ def fill_runtime_param(parammap, inputstore, name, step, storename=False):
     except KeyError:
         print('WARNING! no input param found for name {}'.format(name))
     else:
-        parammap[step['tool_id']] = {'param': name, 'value': paramval}
+        if step['tool_id'] not in parammap:
+            parammap[step['tool_id']] = {}
+        parammap[step['tool_id']].update({name: paramval})
 
 
 @app.task(queue=config.QUEUE_GALAXY_WORKFLOW, bind=True)
