@@ -72,35 +72,46 @@ def create_spectra_db_pairedlist(inputstore):
     gi = get_galaxy_instance(inputstore)
     # have both dbs ready, do not want to create decoys for pI separated stuff
     dsets = inputstore['datasets']
+    params = inputstore['params']
     speccol = get_collection_contents(gi, inputstore['history'],
                                       dsets['spectra']['id'])
+    setpatterns, pipatterns = params['setpatterns'], params['pipatterns']
+    stripnames = [x.split(':')[0] for x in params['strips']]
+
     def get_coll_name_id(collection):
-        return ((x['element_identifier'], x['object']['id']) 
+        return ((x['object']['name'], x['object']['id'])
                 for x in collection)
     for td in ['target', 'decoy']:
-        # FIXME need piDB for each strip AND set with own shift
-        pidbcol = {pipat: get_collection_contents(gi, inputstore['history'], x['id'])
-                   for pipat, x in zip(inputstore['params']['pipatterns'], 
-                                       dsets['prefrac db {}'.format(td)])}
-        elements = [] 
-        for set_id in inputstore['params']['setpatterns']:
+        # first collect pidb collection contents for each strip/set
+        pidbcol = {set_id: {pipat: get_collection_contents(
+            gi, inputstore['history'],
+            dsets['{}_{}'.format(td,
+                                 get_prefracdb_name(set_id, stripname))]['id'])
+            for pipat, stripname in zip(pipatterns, stripnames)}
+            for set_id in setpatterns}
+        # now loop spectra and pair with pi-db
+        elements = []
+        for set_id in setpatterns:
             set_spec = [speccol[y] for y in get_filename_index_with_identifier(
                 [x['element_identifier'] for x in speccol], set_id)]
-            for pipattern in inputstore['params']['pipatterns']:
-                pispec = [set_spec[y] for y in get_filename_index_with_identifier(
-                    [x['element_identifier'] for x in set_spec], pipattern)]
+            for pipattern in pipatterns:
+                pispec = [set_spec[y] for y in
+                          get_filename_index_with_identifier(
+                              [x['element_identifier'] for x in set_spec],
+                              pipattern)]
                 elements.extend(
                     [{'name': '{}_pIDB_{}'.format(sname, dname),
                       'collection_type': 'paired', 'src': 'new_collection',
-                      'element_identifiers': [{'name': 'forward', 'id': sid, 
+                      'element_identifiers': [{'name': 'forward', 'id': sid,
                                                'src': 'hda'},
                                               {'name': 'reverse', 'id': did,
-                                               'src': 'hda'}]} 
+                                               'src': 'hda'}]}
                      for (sname, sid), (dname, did)
-                     in zip(get_coll_name_id(pispec), get_coll_name_id(pidbcol[pipattern]))])
+                     in zip(get_coll_name_id(pispec),
+                            get_coll_name_id(pidbcol[set_id][pipattern]))])
         colname = 'spectra {} db'.format(td)
         collection = gi.histories.create_dataset_collection(
-            inputstore['history'], {'name': colname, 
+            inputstore['history'], {'name': colname,
                                     'collection_type': 'list:paired',
                                     'element_identifiers': elements})
         dsets[colname] = {'src': 'hdca', 'id': collection['id']}
@@ -411,18 +422,35 @@ def reuse_history(self, inputstore, reuse_history_id):
 def create_6rf_split_dbs(inputstore):
     print('Creating 6RF split DB')
     gi = get_galaxy_instance(inputstore)
-    mod_inputs = get_input_map(module, inputstore['datasets'])
+    dsets = inputstore['datasets']
+    module = gi.workflows.show_workflow(galaxydata.wf_modules['6rf split'])
+    mod_inputs = get_input_map(module, dsets)
+    dsnames = []
     for strip in inputstore['params']['strips']:
         stripname, setshifts = strip.split(':')
-        for setname, shift in zip(inputstore['params']['setnames'], setshifts):
-            params = {'6rf_splitter': {'strip': stripname, 'shift': shift}
-            replace = {'newname': '{}::{}'.format(setname, stripname)
-            gi.workflows.invoke_workflow(galaxydata.wf_modules['6rf_split'], 
+        setshifts = setshifts.split(',')
+        for setpattern, shift in zip(inputstore['params']['setpatterns'],
+                                     setshifts):
+            params = {'6rf_splitter': {'strip': stripname, 'shift': shift}}
+            replace = {'newname': get_prefracdb_name(setpattern, stripname)}
+            gi.workflows.invoke_workflow(galaxydata.wf_modules['6rf split'],
                                          inputs=mod_inputs, params=params,
-                                         history_id=inputstore['history'] 
+                                         history_id=inputstore['history'],
                                          replacement_params=replace)
-    # wait for all datasets to finish by detecting replacemenet name
-    
+            dsname = get_prefracdb_name(setpattern, stripname)
+            for td in ['target', 'decoy']:
+                fullname = '{}_{}'.format(td, dsname)
+                dsnames.append(fullname)
+                dsets[fullname] = {'id': None, 'src': 'hdca'}
+    # wait for all datasets to finish
+    update_inputstore_from_history(gi, dsets, dsnames, inputstore['history'],
+                                   module['name'])
+    return inputstore
+
+
+def get_prefracdb_name(setname, stripname):
+    return '{}::{}'.format(setname, stripname)
+
 
 @app.task(queue=config.QUEUE_GALAXY_WORKFLOW, bind=True)
 def run_workflow_module(self, inputstore, module_uuid):
@@ -568,7 +596,6 @@ def initialize_datasets():
               get_flatfile_names_inputstore()}
     inputs.update({name: {'src': 'hdca', 'id': None} for name in
                    get_collection_names_inputstore()})
-    inputs.update({name: [] for name in get_multidset_names_inputstore()})
     return inputs
 
 
@@ -873,10 +900,6 @@ def get_flatfile_names_inputstore():
 
 
 def get_collection_names_inputstore():
-    return galaxydata.collection_names
-
-
-def get_multidset_names_inputstore():
     return galaxydata.collection_names
 
 

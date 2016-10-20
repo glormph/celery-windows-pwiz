@@ -36,9 +36,12 @@ def parse_commandline(inputstore):
     parser.add_argument('--setpatterns', dest='setpatterns', nargs='+')
     parser.add_argument('--isobtype', dest='isobtype', default=None)
     parser.add_argument('--denominators', dest='denominators', nargs='+')
-    parser.add_argument('--pipatterns', dest='pipatterns', nargs='+')
+    parser.add_argument('--pipatterns', dest='pipatterns', nargs='+',
+                        help='Need to have same order as strips '
+                        'in --strips-shifts')
     parser.add_argument('--strips-shifts', dest='strips', nargs='+',
-                        help='Specify STRIPNAME:SHIFT,SHIFT,SHIFT for each set'
+                        help='Specify STRIPNAME:SHIFT,SHIFT,SHIFT for '
+                        'each set')
     parser.add_argument('--pipeptides', dest='pipeptides_db')
     parser.add_argument('--ppool-ids', dest='perco_ids', nargs='+')
     parser.add_argument('--ppool-size', dest='ppoolsize', default=8)
