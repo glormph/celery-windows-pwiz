@@ -41,6 +41,8 @@ workflows = [
 wf_modules = {
     'quant iso': 'aaa52580-8f49-47c6-82d4-f217d513caf7',
     'quant labelfree': '6a91e9ab-731b-4617-b356-ae36790be4a0',
+    '6rf preparation': '431ab35d-678d-4bf8-ad02-0a2d313ff070',
+    '6rf split': 'f0de0376-6c43-4a71-be8f-80ffc617749a',
     'msgf tmt qe': '702f1f3a-f12f-4d11-8af0-f4e8d689fbce',
     'msgf labelfree qe': 'c6ca26bb-5dfb-4519-a081-d6de451468c4',
     'percolator': 'ba17a0df-74fb-45ed-8c1a-3f93e41797e3',
@@ -97,11 +99,13 @@ collection_names = ['spectra',
                     'postprocessed PSMs decoy',
                     'peptides bare target',
                     'peptides bare decoy',
+                    'peptable MS1 deltapi',
                     ]
 
 flatfile_names = ['target db',
                   'decoy db',
                   'pipeptides db',
+                  'pipeptides known db',
                   'knownpep db',
                   'biomart map',
                   'spectra lookup',
@@ -127,4 +131,27 @@ flatfile_names = ['target db',
 libraries = {'modifications': '85572375f4abb7f8',
              'databases': '2eb7685dc8c8283c',
              'marts': '2eb7685dc8c8283c',  # same as databases
-            }
+             }
+
+
+strips = {'37-49': {'fr_width': 0.0174,
+                    'pi_tolerance': 0.08,
+                    'intercept': 3.5959,
+                    'fr_amount': 72,
+                    'reverse': False},
+          '3-10': {'fr_width': 0.0676,
+                   'pi_tolerance': 0.11,
+                   'intercept': 3.5478,
+                   'fr_amount': 72,
+                   'reverse': False},
+          '11-6': {'fr_width': -0.0762,
+                   'pi_tolerance': 0.11,
+                   'intercept': 10.3936,
+                   'fr_amount': 60,
+                   'reverse': True},
+          '6-9': {'fr_width': 0.0336,
+                  'pi_tolerance': 0.11,
+                  'intercept': 6.1159,
+                  'fr_amount': 72,
+                  'reverse': False},
+          }

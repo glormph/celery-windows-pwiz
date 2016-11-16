@@ -422,19 +422,69 @@ def reuse_history(self, inputstore, reuse_history_id):
 def create_6rf_split_dbs(inputstore):
     print('Creating 6RF split DB')
     gi = get_galaxy_instance(inputstore)
-    dsets = inputstore['datasets']
+    params, dsets = inputstore['params'], inputstore['datasets']
+    # run WF to prep peptable to get strip shifts for 6RF split
+    mod = gi.workflows.show_workflow(galaxydata.wf_modules['6rf preparation'])
+    prep_inputs = get_input_map(mod, dsets)
+    # FIXME this is hardcode, but follows usual standards. CHange if necessary
+    # How to deal with 60a 60b, reruns etc? Ask Rui.
+    strips = [galaxydata.strips[x] for x in params['strips']]
+    prep_wf_params = {'toolshed.g2.bx.psu.edu/repos/bgruening/text_processing/'
+                      'tp_sed_tool/1.0.0':
+                      {'code':
+                       's/.*fr([0-9][0-9]).*/\\1/;'
+                       's/Uploaded files/Fractions/'},
+                      'delta_pi_peptable':
+                      {'strippatterns': ' '.join(params['pipatterns']),
+                       'fr_widths': ' '.join([str(x['fr_width'])
+                                              for x in strips]),
+                       'intercepts': ' '.join([str(x['intercept'])
+                                              for x in strips]),
+                       }}
+    gi.workflows.invoke_workflow(mod['id'], inputs=prep_inputs,
+                                 history_id=inputstore['history'],
+                                 params=prep_wf_params)
+    update_inputstore_from_history(gi, dsets, ['peptable MS1 deltapi'],
+                                   inputstore['history'],
+                                   'prep predpi peptable')
+    peptable_col = gi.histories.show_dataset_collection(
+        inputstore['history'], dsets['peptable MS1 deltapi']['id'])
+    peptable_ds = {x['element_identifier']: x['object']['id']
+                   for x in peptable_col['elements']}
+    # run grep tool on fn range column with --pipatterns
+    greptool = ('toolshed.g2.bx.psu.edu/repos/bgruening/text_processing/'
+                'tp_grep_tool/1.0.0')
+    splitpeptables = {x: {} for x in params['setnames']}
+    for setname, peptable_id in peptable_ds.items():
+        pep_in = {'src': 'hda', 'id': peptable_id}
+        for pipat, stripname in zip(params['pipatterns'], params['strips']):
+            greppat = 'Uploaded|{}'.format(pipat)
+            pipep = gi.tools.run_tool(inputstore['history'], greptool,
+                                      tool_inputs={'infile': pep_in,
+                                                   'url_paste': greppat})
+            splitpeptables[setname][stripname] = {'src': 'hda', 'id':
+                                                  pipep['outputs'][0]['id']}
+    # Now run 6RF split wf
     module = gi.workflows.show_workflow(galaxydata.wf_modules['6rf split'])
+    # get_input_map will error on peptable shift not existing so we pass dummy
+    dsets['peptable shift'] = {'src': 'hda', 'id': 'dummy peptable'}
     mod_inputs = get_input_map(module, dsets)
+    pepshift_uuid = [uuid for uuid, ds in mod_inputs.items()
+                     if ds['id'] == 'dummy peptable'][0]
     dsnames = []
-    for strip in inputstore['params']['strips']:
-        stripname, setshifts = strip.split(':')
-        setshifts = setshifts.split(',')
-        for setpattern, shift in zip(inputstore['params']['setpatterns'],
-                                     setshifts):
-            params = {'6rf_splitter': {'strip': stripname, 'shift': shift}}
+    for stripname in params['strips']:
+        strip = galaxydata.strips[stripname]
+        for setpattern, setname in zip(params['setpatterns'],
+                                       params['setnames']):
+            mod_inputs[pepshift_uuid] = splitpeptables[setname][stripname]
+            wfparams = {'6rf_splitter': {'intercept': strip['intercept'],
+                                         'tolerance': strip['pi_tolerance'],
+                                         'fr_width': strip['fr_width'],
+                                         'fr_amount': strip['fr_amount'],
+                                         'reverse': strip['reverse']}}
             replace = {'newname': get_prefracdb_name(setpattern, stripname)}
             gi.workflows.invoke_workflow(galaxydata.wf_modules['6rf split'],
-                                         inputs=mod_inputs, params=params,
+                                         inputs=mod_inputs, params=wfparams,
                                          history_id=inputstore['history'],
                                          replacement_params=replace)
             dsname = get_prefracdb_name(setpattern, stripname)
@@ -444,7 +494,7 @@ def create_6rf_split_dbs(inputstore):
                 dsets[fullname] = {'id': None, 'src': 'hdca'}
     # wait for all datasets to finish
     update_inputstore_from_history(gi, dsets, dsnames, inputstore['history'],
-                                   module['name'])
+                                   'Finishing 6rf split')
     return inputstore
 
 
