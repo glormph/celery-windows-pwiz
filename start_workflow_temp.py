@@ -1,16 +1,14 @@
 import sys
-import os
 import argparse
 
-from tasks.galaxy import galaxydata
 from tasks.galaxy import tasks
-from tasks.galaxy import util
 from tasks import config
 
 from workflow_starter import prep_workflow, run_workflow
 
 
 TESTING_NO_CLEANUP = True
+
 
 def main():
     inputstore, gi = prep_workflow(parse_commandline)
@@ -71,8 +69,8 @@ def parse_commandline(inputstore):
     for name in tasks.get_multidset_names_inputstore():
         parsename = name.replace(' ', '_')
         if hasattr(args, parsename) and getattr(args, parsename) is not None:
-            inputstore['datasets'][name].append({'src': 'hdca', 
-                                                 'id': getattr(args, parsename)})
+            inputstore['datasets'][name].append(
+                {'src': 'hdca', 'id': getattr(args, parsename)})
     for param in ['setnames', 'setpatterns', 'isobtype', 'genefield',
                   'perco_ids', 'ppoolsize', 'fastadelim', 'filesassets',
                   'strips', 'pipatterns']:

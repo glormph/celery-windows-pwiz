@@ -189,7 +189,7 @@ def run_metafiles2pin(self, inputstore):
     print('Running metafiles2pin')
     gi = get_galaxy_instance(inputstore)
     update_inputstore_from_history(gi, inputstore['datasets'],
-                                   ['msgf target', 'msgf decoy'], 
+                                   ['msgf target', 'msgf decoy'],
                                    inputstore['history'], 'metafiles2pin task')
     tool_inputs = {'percopoolsize': inputstore['params']['ppoolsize']}
     for count, pp_id in enumerate(inputstore['params']['perco_ids']):
@@ -203,7 +203,8 @@ def run_metafiles2pin(self, inputstore):
             inputstore['history'], 'metafiles2pin_ts',
             tool_inputs=tool_inputs)['output_collections'][0]['id']
     for td in ['target', 'decoy']:
-        wait_for_dynamic_collection('metafiles2pin', gi, inputstore, td_meta[td])
+        wait_for_dynamic_collection('metafiles2pin', gi, inputstore,
+                                    td_meta[td])
         inputstore['datasets']['percometa {}'.format(td)]['id'] = td_meta[td]
     return inputstore
 
@@ -221,9 +222,9 @@ def merge_percobatches_to_sets(self, inputstore):
         specfiles, inputstore['params']['perco_ids'],
         inputstore['params']['ppoolsize'])
     # get split TD result collections
-    update_inputstore_from_history(gi, inputstore['datasets'], 
+    update_inputstore_from_history(gi, inputstore['datasets'],
                                    ['perco batch target', 'perco batch decoy'],
-                                   inputstore['history'], 
+                                   inputstore['history'],
                                    'merge percolator task')
     perco_t_col = gi.histories.show_dataset_collection(
         inputstore['history'],
@@ -240,12 +241,10 @@ def merge_percobatches_to_sets(self, inputstore):
             setinfo = inputstore['percosetbatches']['psets'][setname]
             pbatches = [el for el in percotd['elements']]
             coldesc = {'collection_type': 'list', 'name': setname,
-                       'element_identifiers': [{'id': pbatches[batchn]['object']['id'],
-                                                'name':
-                                                pbatches[batchn]['element_identifier'],
-                                                'src': 'hda'}
-                                               for batchn in
-                                               setinfo['batches']]}
+                       'element_identifiers': [{
+                           'id': pbatches[batchn]['object']['id'],
+                           'name': pbatches[batchn]['element_identifier'],
+                           'src': 'hda'} for batchn in setinfo['batches']]}
             batchcol = gi.histories.create_dataset_collection(
                 inputstore['history'], coldesc)
             # Run merge tool and append merged JSON dataset
@@ -307,7 +306,7 @@ def run_pout2mzid_on_sets(self, inputstore):
                          'src': 'hda'} for mzds in mzids]}
             mzidcol = gi.histories.create_dataset_collection(
                 inputstore['history'], coldesc)
-            poutinputs = {'percout': {'src': 'hda', 
+            poutinputs = {'percout': {'src': 'hda',
                                       'id': percout['object']['id']},
                           'mzid|multifile': True,
                           'mzid|mzids': {'src': 'hdca', 'id': mzidcol['id']},
@@ -317,8 +316,9 @@ def run_pout2mzid_on_sets(self, inputstore):
                 poutinputs)['output_collections'][0]['id'])
     # wait until collections are ready
     for td in ['target', 'decoy']:
-        for prepoutcol in prepoutcols[pd]:
-            wait_for_dynamic_collection('pout2mzid', gi, inputstore, prepoutcol)
+        for prepoutcol in prepoutcols[td]:
+            wait_for_dynamic_collection('pout2mzid', gi, inputstore,
+                                        prepoutcol)
     # repackage pout2mzid set collections into one collection for all sets
     # for both target and decoy
     print('Repackaging pout2mzid collections for search {} in history '
@@ -326,8 +326,8 @@ def run_pout2mzid_on_sets(self, inputstore):
     for td in ['target', 'decoy']:
         poutcol_els = []
         for poutcolid in prepoutcols[td]:
-            poutcol_els.extend([{'src': 'hda', 'name': el['element_identifier'],
-                                 'id': el['object']['id']}
+            poutcol_els.extend([{'src': 'hda', 'id': el['object']['id'],
+                                 'name': el['element_identifier']}
                                 for el in gi.histories.show_dataset_collection(
                                     inputstore['history'],
                                     poutcolid)['elements']])
@@ -423,7 +423,8 @@ def reuse_history(self, inputstore, reuse_history_id):
     except Exception as e:
         self.retry(countdown=60, exc=e)
     reuse_datasets = {}
-    for label, newlabel in inputstore['wf'][inputstore['current_wf']]['rerun_rename_labels'].items():
+    for label, newlabel in inputstore['wf'][
+            inputstore['current_wf']]['rerun_rename_labels'].items():
         if newlabel:
             reuse_datasets[newlabel] = inputstore['datasets'].pop(label)
     inputstore['datasets'].update(reuse_datasets)
@@ -682,11 +683,12 @@ def check_outputs_workflow_ok(gi, inputstore):
 
 def wait_for_dynamic_collection(toolname, gi, inputstore, col_id):
     print('Waiting for {} to complete for search {} in history '
-          '{}'.format(toolname, inputstore['searchname'], inputstore['history']))
+          '{}'.format(toolname, inputstore['searchname'],
+                      inputstore['history']))
     while True:
         collection = gi.histories.show_dataset_collection(
             inputstore['history'], col_id)
-        if (not collection['populated'] or 
+        if (not collection['populated'] or
                 collection['populated_state'] != 'ok'):
             break
         sleep(10)
