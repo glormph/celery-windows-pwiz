@@ -82,33 +82,45 @@ def create_spectra_db_pairedlist(inputstore):
         return ((x['object']['name'], x['object']['id'])
                 for x in collection)
     for td in ['target', 'decoy']:
-        # first collect pidb collection contents for each strip/set
-        pidbcol = {set_id: {pipat: get_collection_contents(
-            gi, inputstore['history'],
-            dsets['{}_{}'.format(td,
-                                 get_prefracdb_name(set_id, stripname))]['id'])
-            for pipat, stripname in zip(pipatterns, stripnames)}
-            for set_id in setpatterns}
+        # first collect pidb collection contents for each strip/set, have a
+        # dict with {frnrstr: elementdict}
+        pidbcol = {}
+        for set_id in setpatterns:
+            pidbcol[set_id] = {}
+            for pipat, stripname in zip(pipatterns, stripnames):
+                pidbcol[set_id][pipat] = {
+                    re.sub('.*_fr([0-9][0-9]).*', r'\1', x['name']): x
+                    for x in get_collection_contents(
+                        gi, inputstore['history'], dsets['{}_{}'.format(
+                            td, get_prefracdb_name(set_id, stripname))]['id'])}
         # now loop spectra and pair with pi-db
         elements = []
         for set_id in setpatterns:
             set_spec = [speccol[y] for y in get_filename_index_with_identifier(
                 [x['element_identifier'] for x in speccol], set_id)]
             for pipattern in pipatterns:
-                pispec = [set_spec[y] for y in
-                          get_filename_index_with_identifier(
+                pispec = [(set_spec[y], re.sub(params['fr_matcher'], r'\1',
+                                               set_spec[y]))
+                          for y in get_filename_index_with_identifier(
                               [x['element_identifier'] for x in set_spec],
                               pipattern)]
-                elements.extend(
-                    [{'name': '{}_pIDB_{}'.format(sname, dname),
-                      'collection_type': 'paired', 'src': 'new_collection',
-                      'element_identifiers': [{'name': 'forward', 'id': sid,
-                                               'src': 'hda'},
-                                              {'name': 'reverse', 'id': did,
-                                               'src': 'hda'}]}
-                     for (sname, sid), (dname, did)
-                     in zip(get_coll_name_id(pispec),
-                            get_coll_name_id(pidbcol[set_id][pipattern]))])
+                for spec, frnr in pispec:
+                    dbtopair = pidbcol[set_id][pipattern][frnr]['object']
+                    spobj = spec['object']
+                    elements.append(
+                        {'name': '{}_pIDB_{}'.format(spec['name'],
+                                                     dbtopair['name']),
+                         'collection_type': 'paired', 'src': 'new_collection',
+                         'element_identifiers': [{'name': 'forward',
+                                                  'id': spobj['id'],
+                                                  'src': 'hda'},
+                                                 {'name': 'reverse',
+                                                  'id': dbtopair['id'],
+                                                  'src': 'hda'}]}
+                        for (sname, sid), (dname, did)
+                        in zip(get_coll_name_id(pispec),
+                               get_coll_name_id(pidbcol[set_id][pipattern])))
+        # FIXME TEST THIS NEW THING BEFORE DEPLOY ON SMALL LCC2 data (5fr)
         colname = 'spectra {} db'.format(td)
         collection = gi.histories.create_dataset_collection(
             inputstore['history'], {'name': colname,
