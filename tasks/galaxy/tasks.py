@@ -748,7 +748,8 @@ def update_inputstore_from_history(gi, datasets, dsetnames, history_id,
     while not check_inputs_ready(datasets, dsetnames, modname):
         his_contents = gi.histories.show_history(history_id, contents=True,
                                                  deleted=False)
-        for dset in his_contents:
+        # FIXME reverse contents so we start with newest dsets?
+        for index, dset in enumerate(his_contents):
             if not dset_usable(dset):
                 continue
             name = dset['name']
@@ -756,7 +757,7 @@ def update_inputstore_from_history(gi, datasets, dsetnames, history_id,
                 print('found dset {}'.format(name))
                 if datasets[name]['src'] == 'hdca':
                     datasets[name]['id'] = get_collection_id_in_his(
-                        his_contents, name, dset['id'], gi)
+                        his_contents, index, name, dset['id'], gi)
                 elif datasets[name]['src'] == 'hda':
                     datasets[name]['id'] = dset['id']
         sleep(10)
@@ -806,11 +807,13 @@ def check_and_fill_runtime_param(input_val, name, modstep, parammap,
             fill_runtime_param(parammap, inputstore, name, modstep)
 
 
-def get_collection_id_in_his(his_contents, name, named_dset_id, gi):
+def get_collection_id_in_his(his_contents, his_index, name, named_dset_id, gi):
     print('Trying to find collection ID belonging to dataset {} '
           'and ID {}'.format(name, named_dset_id))
     labelfound = False
-    for dset in his_contents:
+    # FIXME certain that collection contents are ALWAYS below collection
+    # in history?
+    for dset in his_contents[his_index:]:
         if dset['name'] == name:
             labelfound = True
         if labelfound and dset['type'] == 'collection':
