@@ -8,10 +8,12 @@ workflows = [
         'searchtype': 'standard',
         'outputs': [],
         # FIXME define which is lib vs not lib, so can get lda vs hdda.
-        # FIXME spectra or spec_history?
+        'required_inputs': ['multiplextype', 'denominators', 'sourcehis'],
         'his_inputs': [],
         'lib_inputs': ['target db', 'modifications', 'biomart map'],
-        'param_inputs': ['multiplextype'],  # FIXME?? necessary?
+        'param_inputs': ['setnames', 'setpatterns', 'filesassets', 'perco_ids',
+                         'ppoolsize', 'fastadelim', 'genefield',
+                         'multiplextype', 'denominators'],
         'other_inputs': ['sourcehis'],
     },
     {
@@ -22,9 +24,12 @@ workflows = [
             'protein isobaric'],
         'searchtype': 'standard',
         'not_outputs': ['symbol table'],  # FIXME deprecate
+        'required_inputs': ['multiplextype', 'denominators', 'sourcehis'],
         'his_inputs': [],
         'lib_inputs': ['target db', 'modifications'],
-        'param_inputs': ['multiplextype'],  # FIXME?? necessary?
+        'param_inputs': ['setnames', 'setpatterns', 'filesassets', 'perco_ids',
+                         'ppoolsize', 'fastadelim', 'genefield',
+                         'multiplextype', 'denominators'],
         'other_inputs': ['sourcehis'],
         'outputs': [],
     },
@@ -40,11 +45,15 @@ workflows = [
         'not_outputs': ['protein table', 'gene table', 'symbol table'],
         'outputs': [],
         # FIXME check in wfs what is necessary
+        'required_inputs': ['PSM table target normalsearch', 'multiplextype',
+                            'denominators', 'quant lookup', 'sourcehis'],
         'his_inputs': ['PSM table target normalsearch',
                        'quant lookup'],
-        # FIXME more knownpepdbs
+        # FIXME more knownpepdbs in new WFS they are libs I think
         'lib_inputs': ['target db', 'modifications', 'knownpep_db'],
-        'param_inputs': ['multiplextype'],  # FIXME?? necessary?
+        'param_inputs': ['setnames', 'setpatterns', 'filesassets', 'perco_ids',
+                         'ppoolsize',
+                         'multiplextype', 'denominators'],
         'other_inputs': ['sourcehis'],
     },
     {
@@ -54,9 +63,11 @@ workflows = [
          'psm post labelfree', 'peptide protein labelfree', 'gene labelfree',
          'protein labelfree', 'symbol labelfree'],
         'searchtype': 'standard', 'not_outputs': [],
+        'required_inputs': ['sourcehis'],
         'his_inputs': [],
         'lib_inputs': ['target db', 'modifications'],
-        'param_inputs': [],
+        'param_inputs': ['setnames', 'setpatterns', 'filesassets', 'perco_ids',
+                         'ppoolsize', 'fastadelim', 'genefield'],
         'other_inputs': ['sourcehis'],
         'outputs': [], 'inputs': [],
     }
