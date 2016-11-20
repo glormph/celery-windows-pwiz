@@ -32,7 +32,7 @@ def parse_commandline(inputstore):
                         action='store_const', const=True)
     parser.add_argument('--setnames', dest='setnames', nargs='+')
     parser.add_argument('--setpatterns', dest='setpatterns', nargs='+')
-    parser.add_argument('--isobtype', dest='isobtype', default=None)
+    parser.add_argument('--isobtype', dest='multiplextype', default=None)
     parser.add_argument('--denominators', dest='denominators', nargs='+')
     parser.add_argument('--pipatterns', dest='pipatterns', nargs='+',
                         help='Need to have same order as strips '
@@ -71,7 +71,7 @@ def parse_commandline(inputstore):
     #    if hasattr(args, parsename) and getattr(args, parsename) is not None:
     #        inputstore['datasets'][name].append(
     #            {'src': 'hdca', 'id': getattr(args, parsename)})
-    for param in ['setnames', 'setpatterns', 'isobtype', 'genefield',
+    for param in ['setnames', 'setpatterns', 'multiplextype', 'genefield',
                   'perco_ids', 'ppoolsize', 'fastadelim', 'filesassets',
                   'strips', 'pipatterns']:
         if getattr(args, param) is not None:
