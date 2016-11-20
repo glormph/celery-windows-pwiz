@@ -6,7 +6,6 @@ workflows = [
             'psm post isobaric', 'peptide protein isobaric', 'gene isobaric',
             'protein isobaric', 'symbol isobaric'],
         'searchtype': 'standard',
-        'outputs': [],
         # FIXME define which is lib vs not lib, so can get lda vs hdda.
         'required_inputs': ['multiplextype', 'denominators', 'sourcehis'],
         'his_inputs': [],
@@ -15,6 +14,9 @@ workflows = [
                          'ppoolsize', 'fastadelim', 'genefield',
                          'multiplextype', 'denominators'],
         'other_inputs': ['sourcehis'],
+        'outputs': ['pout2mzid target tar', 'PSM table target',
+                    'peptide table', 'protein table', 'gene table',
+                    'symbol table'],
     },
     {
         'name': 'tmt10, uni/swissprot, QE', 'modules': [
@@ -23,7 +25,6 @@ workflows = [
             'psm post isobaric', 'peptide protein isobaric', 'gene isobaric',
             'protein isobaric'],
         'searchtype': 'standard',
-        'not_outputs': ['symbol table'],  # FIXME deprecate
         'required_inputs': ['multiplextype', 'denominators', 'sourcehis'],
         'his_inputs': [],
         'lib_inputs': ['target db', 'modifications'],
@@ -31,7 +32,8 @@ workflows = [
                          'ppoolsize', 'fastadelim', 'genefield',
                          'multiplextype', 'denominators'],
         'other_inputs': ['sourcehis'],
-        'outputs': [],
+        'outputs': ['pout2mzid target tar', 'PSM table target',
+                    'peptide table', 'protein table', 'gene table'],
     },
     {
         'name': 'varDB, tmt10, ENSEMBL, QE', 'modules': [
@@ -41,9 +43,6 @@ workflows = [
         'rerun_rename_labels': {
             'quant lookup': False, 'expdata': False,
             'PSM table target': 'PSM table target normalsearch'},
-        # FIXME deprecate not_outputs
-        'not_outputs': ['protein table', 'gene table', 'symbol table'],
-        'outputs': [],
         # FIXME check in wfs what is necessary
         'required_inputs': ['PSM table target normalsearch', 'multiplextype',
                             'denominators', 'quant lookup', 'sourcehis'],
@@ -55,6 +54,8 @@ workflows = [
                          'ppoolsize',
                          'multiplextype', 'denominators'],
         'other_inputs': ['sourcehis'],
+        'outputs': ['pout2mzid target tar', 'PSM table target',
+                    'peptide table'],
     },
     {
         'name': 'labelfree ENSEMBL QE', 'modules':
@@ -62,14 +63,16 @@ workflows = [
          'psm preproc lfree ensembl', 'psm proteingroup',
          'psm post labelfree', 'peptide protein labelfree', 'gene labelfree',
          'protein labelfree', 'symbol labelfree'],
-        'searchtype': 'standard', 'not_outputs': [],
+        'searchtype': 'standard',
         'required_inputs': ['sourcehis'],
         'his_inputs': [],
         'lib_inputs': ['target db', 'modifications'],
         'param_inputs': ['setnames', 'setpatterns', 'filesassets', 'perco_ids',
                          'ppoolsize', 'fastadelim', 'genefield'],
         'other_inputs': ['sourcehis'],
-        'outputs': [], 'inputs': [],
+        'outputs': ['pout2mzid target tar', 'PSM table target',
+                    'peptide table', 'protein table', 'gene table',
+                    'symbol table'],
     }
 ]
 

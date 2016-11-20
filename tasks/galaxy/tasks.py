@@ -982,9 +982,7 @@ def get_collection_names_inputstore():
 
 
 def get_output_dsets(wf):
-    outnames = set(galaxydata.download_data_names).difference(
-        wf['not_outputs'])
-    return {k: galaxydata.download_data_names[k] for k in outnames}
+    return {k: galaxydata.download_data_names[k] for k in wf['outputs']}
 
 
 nonwf_galaxy_tasks = {'@pout2mzid': run_pout2mzid_on_sets,
