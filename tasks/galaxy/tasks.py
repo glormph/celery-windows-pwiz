@@ -927,13 +927,28 @@ def run_prep_tools(gi, inputstore):
                                 name='spectra lookup')
 
 
+def get_absent_mods(remote_mods, mods_to_check):
+    absentmods = []
+    for mod_uuid in mods_to_check:
+        try:
+            remote_mods[mod_uuid]['id']
+        except KeyError:
+            absentmods.append(mod_uuid)
+    return absentmods
+
+
+def get_remote_modules(gi):
+    return {mod['latest_workflow_uuid']: mod
+            for mod in gi.workflows.get_workflows()}
+
+
 def check_modules(gi, modules):
     deleted_error = False
     galaxy_modules = {}
     # FIXME not have distributed module UUIDs bc you need to distribute them
     # No need for github update every time. Doing this now.
-    remote_modules = {mod['latest_workflow_uuid']: mod
-                      for mod in gi.workflows.get_workflows()}
+    remote_modules = get_remote_modules(gi)
+    print('Checking if all modules are on server')
     for mod_uuid, mod_name in modules:
         print('Checking module {}: fetching workflow for {}'.format(mod_name,
                                                                     mod_uuid))
