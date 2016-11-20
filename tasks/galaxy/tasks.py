@@ -943,10 +943,6 @@ def check_modules(gi, modules):
             raise RuntimeError('Cannot find module "{}" with UUID {} on '
                                'galaxy server '
                                'for this user'.format(mod_name, mod_uuid))
-        except galaxy.client.ConnectionError as e:
-            raise RuntimeError('Connection problem when asking for module "{}"'
-                               ' with UUID {} on Galaxy server. '
-                               'Error was {}'.format(mod_name, mod_uuid, e))
         else:
             module = gi.workflows.show_workflow(remote_mod_id)
             if module['deleted']:
