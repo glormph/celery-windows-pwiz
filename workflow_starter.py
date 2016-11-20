@@ -32,12 +32,34 @@ def prep_workflow(parsefun):
                   '{}: {}'.format(wf['name'], mods))
         sys.exit()
     else:
+        inputstore['wf'] = [get_workflows()[num]
+                            for num in inputstore['wf_num']]
+        # Input checking. In UI we just demand inputs on the spot by reading
+        # from the wf. Then we need to also specify the optional ones, but this
+        # can be a start
+        input_error = False
+        for in_dset in inputstore['wf']['his_inputs']:
+            if inputstore['datasets'][in_dset]['id'] is None:
+                print('Dataset {} not specified. Exiting.'.format(in_dset))
+                input_error = True
+        for in_param in inputstore['wf']['param_inputs']:
+            if (in_param not in inputstore['params'] or
+                    inputstore['params'][in_param] is None):
+                print('Required parameter {} not specified. '
+                      'Exiting.'.format(in_param))
+                input_error = True
+        for in_param in inputstore['wf']['other_inputs']:
+            if (in_param not in inputstore or
+                    inputstore[in_param] is None):
+                print('Required parameter {} not specified. '
+                      'Exiting.'.format(in_param))
+                input_error = True
+        if input_error:
+            sys.exit(1)
         gi = util.get_galaxy_instance(inputstore)
         libdsets = tasks.get_library_dsets(gi)
         inputstore['datasets'].update(libdsets)
         print('Using datasets from library:', libdsets)
-        inputstore['wf'] = [get_workflows()[num]
-                            for num in inputstore['wf_num']]
     return inputstore, gi
 
 

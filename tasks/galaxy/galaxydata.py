@@ -6,7 +6,13 @@ workflows = [
             'psm post isobaric', 'peptide protein isobaric', 'gene isobaric',
             'protein isobaric', 'symbol isobaric'],
         'searchtype': 'standard',
-        'not_outputs': [],
+        'outputs': [],
+        # FIXME define which is lib vs not lib, so can get lda vs hdda.
+        # FIXME spectra or spec_history?
+        'his_inputs': [],
+        'lib_inputs': ['target db', 'modifications', 'biomart map'],
+        'param_inputs': ['multiplextype'],  # FIXME?? necessary?
+        'other_inputs': ['sourcehis'],
     },
     {
         'name': 'tmt10, uni/swissprot, QE', 'modules': [
@@ -15,7 +21,12 @@ workflows = [
             'psm post isobaric', 'peptide protein isobaric', 'gene isobaric',
             'protein isobaric'],
         'searchtype': 'standard',
-        'not_outputs': ['symbol table'],
+        'not_outputs': ['symbol table'],  # FIXME deprecate
+        'his_inputs': [],
+        'lib_inputs': ['target db', 'modifications'],
+        'param_inputs': ['multiplextype'],  # FIXME?? necessary?
+        'other_inputs': ['sourcehis'],
+        'outputs': [],
     },
     {
         'name': 'varDB, tmt10, ENSEMBL, QE', 'modules': [
@@ -25,16 +36,30 @@ workflows = [
         'rerun_rename_labels': {
             'quant lookup': False, 'expdata': False,
             'PSM table target': 'PSM table target normalsearch'},
+        # FIXME deprecate not_outputs
         'not_outputs': ['protein table', 'gene table', 'symbol table'],
+        'outputs': [],
+        # FIXME check in wfs what is necessary
+        'his_inputs': ['PSM table target normalsearch',
+                       'quant lookup'],
+        # FIXME more knownpepdbs
+        'lib_inputs': ['target db', 'modifications', 'knownpep_db'],
+        'param_inputs': ['multiplextype'],  # FIXME?? necessary?
+        'other_inputs': ['sourcehis'],
     },
-        {'name': 'labelfree ENSEMBL QE', 'modules':
-         ['quant labelfree', 'msgf labelfree qe', 'percolator',
-          'psm preproc lfree ensembl', 'psm proteingroup',
-          'psm post labelfree', 'peptide protein labelfree', 'gene labelfree',
-          'protein labelfree', 'symbol labelfree'],
-        'searchtype': 'standard',
-        'not_outputs': [],
-        }
+    {
+        'name': 'labelfree ENSEMBL QE', 'modules':
+        ['quant labelfree', 'msgf labelfree qe', 'percolator',
+         'psm preproc lfree ensembl', 'psm proteingroup',
+         'psm post labelfree', 'peptide protein labelfree', 'gene labelfree',
+         'protein labelfree', 'symbol labelfree'],
+        'searchtype': 'standard', 'not_outputs': [],
+        'his_inputs': [],
+        'lib_inputs': ['target db', 'modifications'],
+        'param_inputs': [],
+        'other_inputs': ['sourcehis'],
+        'outputs': [], 'inputs': [],
+    }
 ]
 
 
@@ -119,6 +144,7 @@ flatfile_names = ['target db',
                   'pout2mzid target tar',  # output
                   'PSM table target',  # output
                   'PSM table decoy',
+                  'PSM table target normalsearch',
                   'proteingroup lookup target',
                   'proteingroup lookup decoy',
                   'peptide table',  # output
