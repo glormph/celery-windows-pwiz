@@ -18,18 +18,19 @@ def prep_workflow(parsefun):
                  'apikey': config.ADMIN_APIKEY}
         gi_admin = util.get_galaxy_instance(admin)
         remote_mods = tasks.get_remote_modules(gi_admin)
-        absent_mods = {}
+        absent_mods, badwfs = {}, {}
         for num, wf in enumerate(get_workflows()):
             modules = {x[0]: x[1] for x in
                        get_modules_for_workflow(wf['modules'])}
-            absent_mods[wf['name']] = {x: modules[x] for x in
-                                       tasks.get_absent_mods(remote_mods,
-                                                             modules.keys())}
-            if not wf['name'] in absent_mods:
+            absent_mods = {x: modules[x] for x in
+                           tasks.get_absent_mods(remote_mods, modules.keys())}
+            if not absent_mods:
                 print('{}  -  {}  - OK'.format(num, wf['name']))
-        for wfname, mods in absent_mods.items():
+            else:
+                badwfs[wf['name']] = absent_mods
+        for wfname, mods in badwfs.items():
             print('Could not find modules on server for wf '
-                  '{}: {}'.format(wf['name'], mods))
+                  '{}: {}'.format(wfname, mods))
         sys.exit()
     else:
         inputstore['wf'] = [get_workflows()[num]
