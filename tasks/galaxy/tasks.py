@@ -89,7 +89,9 @@ def create_spectra_db_pairedlist(inputstore):
             pidbcol[set_id] = {}
             for pipat, stripname in zip(pipatterns, stripnames):
                 pidbcol[set_id][pipat] = {
-                    re.sub('.*_fr([0-9][0-9]).*', r'\1', x['name']): x
+                    # Hardcoded fr matcher for db
+                    int(re.sub('.*fr([0-9][0-9]).*', r'\1',
+                               x['element_identifier'])): x
                     for x in get_collection_contents(
                         gi, inputstore['history'], dsets['{}_{}'.format(
                             td, get_prefracdb_name(set_id, stripname))]['id'])}
@@ -99,8 +101,9 @@ def create_spectra_db_pairedlist(inputstore):
             set_spec = [speccol[y] for y in get_filename_index_with_identifier(
                 [x['element_identifier'] for x in speccol], set_id)]
             for pipattern in pipatterns:
-                pispec = [(set_spec[y], re.sub(params['fr_matcher'], r'\1',
-                                               set_spec[y]))
+                pispec = [(set_spec[y],
+                           int(re.sub(params['fr_matcher'], r'\1',
+                                      set_spec[y]['element_identifier'])))
                           for y in get_filename_index_with_identifier(
                               [x['element_identifier'] for x in set_spec],
                               pipattern)]
@@ -108,7 +111,7 @@ def create_spectra_db_pairedlist(inputstore):
                     dbtopair = pidbcol[set_id][pipattern][frnr]['object']
                     spobj = spec['object']
                     elements.append(
-                        {'name': '{}_pIDB_{}'.format(spec['name'],
+                        {'name': '{}_pIDB_{}'.format(spobj['name'],
                                                      dbtopair['name']),
                          'collection_type': 'paired', 'src': 'new_collection',
                          'element_identifiers': [{'name': 'forward',
@@ -116,10 +119,7 @@ def create_spectra_db_pairedlist(inputstore):
                                                   'src': 'hda'},
                                                  {'name': 'reverse',
                                                   'id': dbtopair['id'],
-                                                  'src': 'hda'}]}
-                        for (sname, sid), (dname, did)
-                        in zip(get_coll_name_id(pispec),
-                               get_coll_name_id(pidbcol[set_id][pipattern])))
+                                                  'src': 'hda'}]})
         # FIXME TEST THIS NEW THING BEFORE DEPLOY ON SMALL LCC2 data (5fr)
         colname = 'spectra {} db'.format(td)
         collection = gi.histories.create_dataset_collection(
@@ -444,9 +444,9 @@ def create_6rf_split_dbs(inputstore):
     strips = [galaxydata.strips[x] for x in params['strips']]
     prep_wf_params = {'toolshed.g2.bx.psu.edu/repos/bgruening/text_processing/'
                       'tp_sed_tool/1.0.0':
-                      {'code':
-                       's/.*fr([0-9][0-9]).*/\\1/;'
-                       's/Uploaded files/Fractions/'},
+                      {'code': 's/{}/\\1/;'
+                       's/Uploaded files/Fractions/'
+                       ''.format(params['fr_matcher'])},
                       'delta_pi_peptable':
                       {'strippatterns': ' '.join(params['pipatterns']),
                        'fr_widths': ' '.join([str(x['fr_width'])
