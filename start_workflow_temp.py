@@ -34,12 +34,16 @@ def parse_commandline(inputstore):
     parser.add_argument('--setpatterns', dest='setpatterns', nargs='+')
     parser.add_argument('--isobtype', dest='multiplextype', default=None)
     parser.add_argument('--denominators', dest='denominators', nargs='+')
+    parser.add_argument('--strips', dest='strips', nargs='+', help='Specify '
+                        'which strips have been used in split DB experiments '
+                        'where DBs are pI predicted')
     parser.add_argument('--pipatterns', dest='pipatterns', nargs='+',
                         help='Need to have same order as strips '
-                        'in --strips-shifts')
-    parser.add_argument('--strips-shifts', dest='strips', nargs='+',
-                        help='Specify STRIPNAME:SHIFT,SHIFT,SHIFT for '
-                        'each set')
+                        'in --strips')
+    parser.add_argument('--frpattern', dest='fr_matcher',
+                        help='Use this regex pattern to match fraction number '
+                        'in filenames, for multiDB. E.g: .*fr([0-9][0-9]).*'
+                        )
     parser.add_argument('--pipeptides', dest='pipeptides_db')
     parser.add_argument('--ppool-ids', dest='perco_ids', nargs='+')
     parser.add_argument('--ppool-size', dest='ppoolsize', default=8)
