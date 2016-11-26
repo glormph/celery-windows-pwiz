@@ -25,7 +25,7 @@ def parse_commandline(inputstore):
     parser.add_argument('--show', dest='show', action='store_const',
                         default=False, const=True)
     parser.add_argument('--reuse-history', dest='reuse_history')
-    parser.add_argument('-w', dest='analysisnr', type=int, nargs=True)
+    parser.add_argument('-w', dest='analysisnr', type=int)
     parser.add_argument('--sourcehists', dest='sourcehistories', nargs='+')
     parser.add_argument('--name', dest='searchname')
     parser.add_argument('--files-as-sets', dest='filesassets', default=False,

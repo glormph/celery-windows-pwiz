@@ -33,8 +33,7 @@ def prep_workflow(parsefun):
                   '{}: {}'.format(wfname, mods))
         sys.exit()
     else:
-        inputstore['wf'] = [get_workflows()[num]
-                            for num in inputstore['wf_num']]
+        inputstore['wf'] = get_workflows()[inputstore['wf_num']]
         # Input checking. In UI we just demand inputs on the spot by reading
         # from the wf. Then we need to also specify the optional ones, but this
         # can be a start
@@ -77,28 +76,26 @@ def select_workflow():
     for num, wf in enumerate(workflows):
         print(num, wf['name'])
     while True: 
-        picks = input('Which workflow (combination) has been run? '
-                      'Separate combinations with commas: ')
+        pick = input('Which workflow has been run? ')
         try:
-            picks = [int(pick) for pick in picks.split(',')]
+            pick = int(pick)
         except ValueError:
-            print('Please enter number(s separated with a comma)')
+            print('Please enter number separated with a comma)')
             continue
         else:
             break
-    modules = [get_modules_for_workflow(workflows[p]['modules']) for p in picks]
-    return {'wf': [workflows[p] for p in picks], 
-            'module_uuids': [y for x in modules for y in x]}
+    return {'wf': workflows[pick], 
+            'module_uuids': get_modules_for_workflow(workflows[pick]['modules'])}
 
 
 def get_workflows():
     return galaxydata.workflows
 
 
-def get_modules_and_tasks(wf_index, inputstore):
+def get_modules_and_tasks(inputstore):
     runchain = []
     moduuids = {mname: muuid for muuid, mname in inputstore['module_uuids']}
-    for modname in inputstore['wf'][wf_index]['modules']:
+    for modname in inputstore['wf']['modules']:
         if modname[0] == '@':
             runchain.append(tasks.nonwf_galaxy_tasks[modname].s())
         else:
@@ -112,14 +109,12 @@ def get_modules_for_workflow(wf_mods):
 
 def run_workflow(inputstore, gi, existing_spectra=False):
     """Runs a wf as specified in inputstore var"""
-    inputstore['searchtype'] = inputstore['wf'][0]['searchtype']
+    inputstore['searchtype'] = inputstore['wf']['searchtype']
     inputstore['searchname'] = tasks.get_searchname(inputstore)
-    inputstore['current_wf'] = 0
-    if (inputstore['run'] and len(inputstore['wf']) == 1
-            and inputstore['rerun_his'] is None):
+    if (inputstore['run'] == 1 and inputstore['rerun_his'] is None):
         # runs a single workflow composed of some modules
         inputstore['module_uuids'] = get_modules_for_workflow(
-            inputstore['wf'][0]['modules'])
+            inputstore['wf']['modules'])
         inputstore['g_modules'] = tasks.check_modules(
             gi, inputstore['module_uuids'])
         if inputstore['datasets']['spectra']['id'] is None:
@@ -134,8 +129,7 @@ def run_workflow(inputstore, gi, existing_spectra=False):
             sets = [x['object']['name'] for x in spectracollection['elements']]
             inputstore['params']['setnames'] = sets
             inputstore['params']['setpatterns'] = sets
-        runchain.extend(get_modules_and_tasks(inputstore['current_wf'], 
-                        inputstore))
+        runchain.extend(get_modules_and_tasks(inputstore))
         runchain.extend(tasks.get_download_task_chain())
 #    elif inputstore['run'] and len(inputstore['wf']) == 2:
 #        # run two workflows with a history transition tool in between
@@ -157,7 +151,7 @@ def run_workflow(inputstore, gi, existing_spectra=False):
     elif inputstore['run'] and inputstore['rerun_his']:
         # runs one workflow with a history to reuse from
         inputstore['module_uuids'] = get_modules_for_workflow(
-            inputstore['wf'][0]['modules'])
+            inputstore['wf']['modules'])
         inputstore['g_modules'] = tasks.check_modules(
             gi, inputstore['module_uuids'])
         runchain = [tasks.tmp_create_history.s(inputstore),
@@ -165,8 +159,7 @@ def run_workflow(inputstore, gi, existing_spectra=False):
                     tasks.tmp_put_files_in_collection.s(),
                     tasks.check_dsets_ok.s(),
                     ]
-        runchain.extend(get_modules_and_tasks(inputstore['current_wf'], 
-                        inputstore))
+        runchain.extend(get_modules_and_tasks(inputstore))
         runchain.extend(tasks.get_download_task_chain())
     else:
         print('Not quite clear what you are trying to do here, '

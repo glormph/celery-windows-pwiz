@@ -409,7 +409,7 @@ def transfer_workflow_modules(self, inputstore):
 
 @app.task(queue=config.QUEUE_GALAXY_WORKFLOW, bind=True)
 def reuse_history(self, inputstore, reuse_history_id):
-    input_labels = inputstore['wf'][0]['rerun_rename_labels'].keys()
+    input_labels = inputstore['wf']['rerun_rename_labels'].keys()
     print('Checking reusable other history for datasets for '
           'input steps {}'.format(input_labels))
     # TODO launch download chain in this task on old history, so user will
@@ -423,8 +423,7 @@ def reuse_history(self, inputstore, reuse_history_id):
     except Exception as e:
         self.retry(countdown=60, exc=e)
     reuse_datasets = {}
-    for label, newlabel in inputstore['wf'][
-            inputstore['current_wf']]['rerun_rename_labels'].items():
+    for label, newlabel in inputstore['wf']['rerun_rename_labels'].items():
         if newlabel:
             reuse_datasets[newlabel] = inputstore['datasets'].pop(label)
     inputstore['datasets'].update(reuse_datasets)
@@ -549,7 +548,7 @@ def run_workflow_module(self, inputstore, module_uuid):
 def get_datasets_to_download(self, inputstore):
     print('Collecting dataset IDs to download')
     gi = get_galaxy_instance(inputstore)
-    output_names = get_output_dsets(inputstore['wf'][inputstore['current_wf']])
+    output_names = get_output_dsets(inputstore['wf'])
     download_dsets = {name: inputstore['datasets'][name]
                       for name in output_names}
     for name, dl_dset in download_dsets.items():
@@ -637,7 +636,7 @@ def write_report(inputstore):
     print('Writing report file for history {}'.format(inputstore['history']))
     report = {'name': inputstore['searchname'],
               'date': datetime.now().strftime('%Y%m%d'),
-              'workflows': [wf['name'] for wf in inputstore['wf']],
+              'workflow': inputstore['wf']['name'],
               'workflow_modules': inputstore['module_uuids'],
               'galaxy history': inputstore['history'],
               'input parameters': inputstore['params'],
@@ -867,8 +866,6 @@ def create_history(inputstore, gi):
     print('Creating new history for: {}'.format(inputstore['searchname']))
     history = gi.histories.create_history(name=inputstore['searchname'])
     inputstore['history'] = history['id']
-    if 'wf' in inputstore:
-        inputstore['wf'][inputstore['current_wf']]['history'] = history['id']
 
 
 @app.task(queue=config.QUEUE_GALAXY_WORKFLOW, bind=True)
