@@ -708,47 +708,51 @@ def update_inputstore_from_history(gi, datasets, dsetnames, history_id,
 
 def get_input_map(module, inputstore):
     inputmap = {}
-    for modinput in module['inputs'].values():
-        inputmap[modinput['uuid']] = {
-            'id': inputstore[modinput['label']]['id'],
-            'src': inputstore[modinput['label']]['src'],
+    for label, uuid in wfmanage.get_workflow_inputs(module):
+        inputmap[uuid] = {
+            'id': inputstore[label]['id'],
+            'src': inputstore[label]['src'],
         }
     return inputmap
 
 
 def get_param_map(module, inputstore):
     parammap = {}
-    for modstep in module['steps'].values():
-        try:
-            tool_param_inputs = modstep['tool_inputs'].items()
-        except AttributeError:
-            continue
-        for input_name, input_val in tool_param_inputs:
-            try:
-                input_val = json.loads(input_val)
-            except ValueError:
-                # no json obj, no runtime values
-                continue
-            if type(input_val) == dict:
-                check_and_fill_runtime_param(input_val, input_name, modstep,
-                                             parammap, inputstore)
+    for param in wfmanage.get_workflow_params(module):
+        fill_runtime_param(parammap, inputstore, param['name'],
+                           param['tool_id'], param['storename'])
     return parammap
-
-
-def check_and_fill_runtime_param(input_val, name, modstep, parammap,
-                                 inputstore):
-    if dict in [type(x) for x in input_val.values()]:
-        # complex input with repeats/conditional
-        for subname, subval in input_val.items():
-            composed_name = '{}|{}'.format(name, subname)
-            if is_runtime_param(subval, composed_name, modstep):
-                fill_runtime_param(parammap, inputstore, composed_name,
-                                   modstep, name)
-    else:
-        # simple runtime value check and fill with inputstore value
-        if is_runtime_param(input_val, name, modstep):
-            fill_runtime_param(parammap, inputstore, name, modstep)
-
+#    for modstep in module['steps'].values():
+#        try:
+#            tool_param_inputs = modstep['tool_inputs'].items()
+#        except AttributeError:
+#            continue
+#        for input_name, input_val in tool_param_inputs:
+#            try:
+#                input_val = json.loads(input_val)
+#            except ValueError:
+#                # no json obj, no runtime values
+#                continue
+#            if type(input_val) == dict:
+#                check_and_fill_runtime_param(input_val, input_name, modstep,
+#                                             parammap, inputstore)
+#    return parammap
+#
+#
+#def check_and_fill_runtime_param(input_val, name, modstep, parammap,
+#                                 inputstore):
+#    if dict in [type(x) for x in input_val.values()]:
+#        # complex input with repeats/conditional
+#        for subname, subval in input_val.items():
+#            composed_name = '{}|{}'.format(name, subname)
+#            if wfmanage.is_runtime_param(subval, composed_name, modstep):
+#                fill_runtime_param(parammap, inputstore, composed_name,
+#                                   modstep, name)
+#    else:
+#        # simple runtime value check and fill with inputstore value
+#        if wfmanage.is_runtime_param(input_val, name, modstep):
+#            fill_runtime_param(parammap, inputstore, name, modstep)
+#
 
 def get_collection_id_in_his(his_contents, dset_name, named_dset_id, gi,
                              his_index=False, direction=False):
@@ -775,20 +779,7 @@ def get_collection_id_in_his(his_contents, dset_name, named_dset_id, gi,
     return None
 
 
-def is_runtime_param(val, name, step):
-    try:
-        isruntime = val['__class__'] == 'RuntimeValue'
-    except TypeError:
-        return False
-    except KeyError:
-        return False
-    else:
-        if isruntime and name not in step['input_steps']:
-            return True
-        return False
-
-
-def fill_runtime_param(parammap, inputstore, name, step, storename=False):
+def fill_runtime_param(parammap, inputstore, name, tool_id, storename=False):
     if not storename:
         storename = name
     try:
@@ -796,9 +787,9 @@ def fill_runtime_param(parammap, inputstore, name, step, storename=False):
     except KeyError:
         print('WARNING! no input param found for name {}'.format(name))
     else:
-        if step['tool_id'] not in parammap:
-            parammap[step['tool_id']] = {}
-        parammap[step['tool_id']].update({name: paramval})
+        if tool_id not in parammap:
+            parammap[tool_id] = {}
+        parammap[tool_id].update({name: paramval})
 
 
 @app.task(queue=config.QUEUE_GALAXY_WORKFLOW, bind=True)
@@ -818,11 +809,7 @@ def create_history(inputstore, gi):
 @app.task(queue=config.QUEUE_GALAXY_WORKFLOW, bind=True)
 def tmp_prepare_run(self, inputstore):
     gi = get_galaxy_instance(inputstore)
-    check_modules(gi, inputstore['module_uuids'])
-    try:
-        run_prep_tools(gi, inputstore)
-    except Exception as e:  # FIXME correct Galaxy error here
-        self.retry(countdown=60, exc=e)
+    wfmanage.check_modules(gi, inputstore['module_uuids'])
     return inputstore
 
 
@@ -841,14 +828,7 @@ def prepare_run(self, inputstore, is_workflow=True):
     inputstore['search_dbid'] = dbaccess.init_search(
         inputstore['searchname'], inputstore['wf_id'], inputstore['mzml_ids'])
     gi = get_galaxy_instance(inputstore)
-    if is_workflow:
-        check_modules(gi, inputstore['module_uuids'])
-    try:
-        create_history(inputstore, gi)
-        if is_workflow:
-            run_prep_tools(gi, inputstore)
-    except:  # FIXME correct Galaxy error here
-        self.retry(countdown=60)
+    wfmanage.check_modules(gi, inputstore['module_uuids'])
     return inputstore
 
 
@@ -870,42 +850,6 @@ def run_mslookup_spectra(gi, inputstore):
                                    tool_inputs=set_inputs)['outputs'][0]
     gi.histories.update_dataset(speclookup['history_id'], speclookup['id'],
                                 name='spectra lookup')
-
-
-def get_remote_modules(gi):
-    return {mod['latest_workflow_uuid']: mod
-            for mod in gi.workflows.get_workflows()}
-
-
-def check_modules(gi, modules):
-    deleted_error = False
-    galaxy_modules = {}
-    # FIXME not have distributed module UUIDs bc you need to distribute them
-    # No need for github update every time. Doing this now.
-    remote_modules = get_remote_modules(gi)
-    print('Checking if all modules are on server')
-    for mod_uuid, mod_name in modules:
-        print('Checking module {}: fetching workflow for {}'.format(mod_name,
-                                                                    mod_uuid))
-        try:
-            remote_mod_id = remote_modules[mod_uuid]['id']
-        except KeyError:
-            raise RuntimeError('Cannot find module "{}" with UUID {} on '
-                               'galaxy server '
-                               'for this user'.format(mod_name, mod_uuid))
-        else:
-            module = gi.workflows.show_workflow(remote_mod_id)
-            if module['deleted']:
-                deleted_error = True
-                print('Workflow module {} with UUID {} has been '
-                      'deleted on Galaxy server, please use '
-                      'latest UUID'.format(module['name'], mod_uuid))
-            else:
-                galaxy_modules[mod_uuid] = module
-    if deleted_error:
-        print('Invalid workflow UUIDs have been specified, exiting')
-        sys.exit(1)
-    return galaxy_modules
 
 
 def get_flatfile_names_inputstore():

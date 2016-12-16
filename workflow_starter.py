@@ -12,29 +12,13 @@ def prep_workflow(parsefun):
     inputstore = {'params': {},
                   'galaxy_url': config.GALAXY_URL,
                   }
-    inputstore['datasets'] = tasks.initialize_datasets()
+    inputstore['datasets'] = wfmanage.initialize_datasets()
     parsefun(inputstore)
     if inputstore['run'] == 'show':
-        admin = {'galaxy_url': inputstore['galaxy_url'], 
-                 'apikey': config.ADMIN_APIKEY}
-        gi_admin = util.get_galaxy_instance(admin)
-        remote_mods = tasks.get_remote_modules(gi_admin)
-        absent_mods, badwfs = {}, {}
-        for num, wf in enumerate(get_workflows()):
-            modules = {x[0]: x[1] for x in
-                       get_modules_for_workflow(wf['modules'])}
-            absent_mods = {x: modules[x] for x in
-                           wfmanage.get_absent_mods(remote_mods, modules.keys())}
-            if not absent_mods:
-                print('{}  -  {}  - OK'.format(num, wf['name']))
-            else:
-                badwfs[wf['name']] = absent_mods
-        for wfname, mods in badwfs.items():
-            print('Could not find modules on server for wf '
-                  '{}: {}'.format(wfname, mods))
+        wfmanage.check_all_modules(inputstore)
         sys.exit()
     else:
-        inputstore['wf'] = get_workflows()[inputstore['wf_num']]
+        inputstore['wf'] = wfmanage.get_workflows()[inputstore['wf_num']]
         # Input checking. In UI we just demand inputs on the spot by reading
         # from the wf. Then we need to also specify the optional ones, but this
         # can be a start
@@ -73,7 +57,7 @@ def prep_workflow(parsefun):
 
 def select_workflow():
     print('--------------------')
-    workflows = get_workflows()
+    workflows = wfmanage.get_workflows()
     for num, wf in enumerate(workflows):
         print(num, wf['name'])
     while True: 
@@ -86,11 +70,8 @@ def select_workflow():
         else:
             break
     return {'wf': workflows[pick], 
-            'module_uuids': get_modules_for_workflow(workflows[pick]['modules'])}
-
-
-def get_workflows():
-    return galaxydata.workflows
+            'module_uuids': wfmanage.get_modules_for_workflow(
+                workflows[pick]['modules'])}
 
 
 def get_modules_and_tasks(inputstore):
@@ -104,19 +85,15 @@ def get_modules_and_tasks(inputstore):
     return runchain
 
 
-def get_modules_for_workflow(wf_mods):
-    return [(galaxydata.wf_modules[m_name], m_name) for m_name in wf_mods if m_name[0] != '@']
-        
-
 def run_workflow(inputstore, gi, existing_spectra=False):
     """Runs a wf as specified in inputstore var"""
     inputstore['searchtype'] = inputstore['wf']['searchtype']
     inputstore['searchname'] = tasks.get_searchname(inputstore)
     if (inputstore['run'] == 1 and inputstore['rerun_his'] is None):
         # runs a single workflow composed of some modules
-        inputstore['module_uuids'] = get_modules_for_workflow(
+        inputstore['module_uuids'] = wfmanage.get_modules_for_workflow(
             inputstore['wf']['modules'])
-        inputstore['g_modules'] = tasks.check_modules(
+        inputstore['g_modules'] = wfmanage.check_modules(
             gi, inputstore['module_uuids'])
         if inputstore['datasets']['spectra']['id'] is None:
             runchain = [tasks.tmp_create_history.s(inputstore),
@@ -151,9 +128,9 @@ def run_workflow(inputstore, gi, existing_spectra=False):
 #        runchain.extend(tasks.get_download_task_chain())
     elif inputstore['run'] and inputstore['rerun_his']:
         # runs one workflow with a history to reuse from
-        inputstore['module_uuids'] = get_modules_for_workflow(
+        inputstore['module_uuids'] = wfmanage.get_modules_for_workflow(
             inputstore['wf']['modules'])
-        inputstore['g_modules'] = tasks.check_modules(
+        inputstore['g_modules'] = wfmanage.check_modules(
             gi, inputstore['module_uuids'])
         runchain = [tasks.tmp_create_history.s(inputstore),
                     tasks.reuse_history.s(inputstore['rerun_his']),
