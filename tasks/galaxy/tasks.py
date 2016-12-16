@@ -75,7 +75,7 @@ def create_spectra_db_pairedlist(inputstore):
     params = inputstore['params']
     speccol = get_collection_contents(gi, inputstore['history'],
                                       dsets['spectra']['id'])
-    setpatterns, pipatterns = params['setpatterns'], params['pipatterns']
+    setpatterns, pipatterns = params['setpatterns'], params['strippatterns']
     stripnames = [x.split(':')[0] for x in params['strips']]
 
     def get_coll_name_id(collection):
@@ -442,7 +442,7 @@ def create_6rf_split_dbs(inputstore):
                        's/Uploaded files/Fractions/'
                        ''.format(params['fr_matcher'])},
                       'delta_pi_peptable':
-                      {'strippatterns': ' '.join(params['pipatterns']),
+                      {'strippatterns': ' '.join(params['strippatterns']),
                        'fr_widths': ' '.join([str(x['fr_width'])
                                               for x in strips]),
                        'intercepts': ' '.join([str(x['intercept'])
@@ -464,7 +464,7 @@ def create_6rf_split_dbs(inputstore):
     splitpeptables = {x: {} for x in params['setnames']}
     for setname, peptable_id in peptable_ds.items():
         pep_in = {'src': 'hda', 'id': peptable_id}
-        for pipat, stripname in zip(params['pipatterns'], params['strips']):
+        for pipat, stripname in zip(params['strippatterns'], params['strips']):
             greppat = 'Uploaded|{}'.format(pipat)
             pipep = gi.tools.run_tool(inputstore['history'], greptool,
                                       tool_inputs={'infile': pep_in,
