@@ -78,7 +78,7 @@ def parse_commandline(inputstore):
     #            {'src': 'hdca', 'id': getattr(args, parsename)})
     for param in ['setnames', 'setpatterns', 'multiplextype', 'genefield',
                   'perco_ids', 'ppoolsize', 'fastadelim', 'filesassets',
-                  'strips', 'pipatterns']:
+                  'strips', 'strippatterns']:
         if getattr(args, param) is not None:
             inputstore['params'][param] = getattr(args, param)
     if args.denominators is not None:
