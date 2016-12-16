@@ -250,9 +250,10 @@ def merge_percobatches_to_sets(self, inputstore):
             # Run merge tool and append merged JSON dataset
             merged.append({'id': gi.tools.run_tool(
                 inputstore['history'], 'percolator_merge',
-                tool_inputs={'input': {'id': batchcol['id'],
-                                       'src': 'hdca'}})['outputs'][0]['id'],
-                           'src': 'hda', 'name': setname})
+                tool_inputs={'fm|input': {'id': batchcol['id'],
+                                       'src': 'hdca'},
+                             'fm|flattenormerge': 'flatten'}
+                )['outputs'][0]['id'], 'src': 'hda', 'name': setname})
         # Build collection of merged datasets
         mergecoldesc = {'collection_type': 'list', 'name': tdname,
                         'element_identifiers': merged}
