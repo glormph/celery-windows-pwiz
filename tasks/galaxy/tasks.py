@@ -11,37 +11,8 @@ from celery.result import AsyncResult
 from tasks import config, dbaccess
 from tasks.galaxy.util import get_galaxy_instance
 from tasks.galaxy import galaxydata
+from tasks.galaxy import workflow_manage as wfmanage
 from celeryapp import app
-
-
-def get_library_dsets(gi):
-    dset_names_libname = {'target db': 'databases', 'biomart map': 'databases',
-                          'modifications': 'modifications'}
-    output = {}
-    for name, libtype in dset_names_libname.items():
-        dsets = gi.libraries.show_library(galaxydata.libraries[libtype],
-                                          contents=True)
-        print('Select a {} dataset from {}, or enter to skip'.format(name,
-                                                                     libtype))
-        print('--------------------')
-        dsets = [x for x in dsets if x['type'] == 'file']
-        for ix, dset in enumerate(dsets):
-            print(ix, dset['name'])
-        while True:
-            pick = input('Enter selection: ')
-            if pick == '':
-                break
-            try:
-                pick = int(pick)
-            except ValueError:
-                print('Please enter a number corresponding to a dataset or '
-                      'enter')
-                continue
-            break
-        if pick != '':
-            output[name] = {'src': 'ld', 'id': dsets[pick]['id'],
-                            'galaxy_name': dsets[pick]['name']}
-    return output
 
 
 @app.task(queue=config.QUEUE_GALAXY_TOOLS)
@@ -376,30 +347,6 @@ def create_percolator_tasknr_batches(filenames, ppool_ids, max_batchsize):
             batch = []
             count += 1
     return batch_pset_info
-
-
-@app.task(queue=config.QUEUE_GALAXY_WORKFLOW, bind=True)
-def transfer_workflow_modules(self, inputstore):
-    print('Transferring workflow modules from admin to client account '
-          'to get latest updates')
-    if inputstore['apikey'] == config.ADMIN_APIKEY:
-        return inputstore
-    admin = {'galaxy_url': inputstore['galaxy_url'],
-             'apikey': config.ADMIN_APIKEY}
-    gi_admin = get_galaxy_instance(admin)
-    gi = get_galaxy_instance(inputstore)
-    for wf in gi.workflows.get_workflows():
-        if wf['name'][:4] == 'mod:':
-            gi.workflows.delete_workflow(wf['id'])
-    for wf in gi_admin.workflows.get_workflows():
-        if not wf['name'][:4] == 'mod:':
-            continue
-        print('Getting workflow from admin: {}', wf['id'], wf['name'])
-        wf_json = gi_admin.workflows.export_workflow_json(wf['id'])
-        wf_json['name'] = wf_json['name'].replace('(imported from API)',
-                                                  '').strip()
-        gi.workflows.import_workflow_json(wf_json)
-    return inputstore
 
 
 @app.task(queue=config.QUEUE_GALAXY_WORKFLOW, bind=True)
@@ -921,16 +868,6 @@ def run_prep_tools(gi, inputstore):
                                    tool_inputs=set_inputs)['outputs'][0]
     gi.histories.update_dataset(speclookup['history_id'], speclookup['id'],
                                 name='spectra lookup')
-
-
-def get_absent_mods(remote_mods, mods_to_check):
-    absentmods = []
-    for mod_uuid in mods_to_check:
-        try:
-            remote_mods[mod_uuid]['id']
-        except KeyError:
-            absentmods.append(mod_uuid)
-    return absentmods
 
 
 def get_remote_modules(gi):

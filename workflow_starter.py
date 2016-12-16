@@ -3,6 +3,7 @@ from celery import chain
 
 from tasks.galaxy import galaxydata
 from tasks.galaxy import tasks
+from tasks.galaxy import workflow_manage as wfmanage
 from tasks.galaxy import util
 from tasks import config
 
@@ -23,7 +24,7 @@ def prep_workflow(parsefun):
             modules = {x[0]: x[1] for x in
                        get_modules_for_workflow(wf['modules'])}
             absent_mods = {x: modules[x] for x in
-                           tasks.get_absent_mods(remote_mods, modules.keys())}
+                           wfmanage.get_absent_mods(remote_mods, modules.keys())}
             if not absent_mods:
                 print('{}  -  {}  - OK'.format(num, wf['name']))
             else:
@@ -64,7 +65,7 @@ def prep_workflow(parsefun):
         if input_error:
             sys.exit(1)
         gi = util.get_galaxy_instance(inputstore)
-        libdsets = tasks.get_library_dsets(gi)
+        libdsets = wfmanage.get_library_dsets(gi)
         inputstore['datasets'].update(libdsets)
         print('Using datasets from library:', libdsets)
     return inputstore, gi

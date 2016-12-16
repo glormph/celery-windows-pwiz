@@ -1,7 +1,7 @@
 import sys
 import argparse
 
-from tasks.galaxy import tasks
+from tasks.galaxy import workflow_manage as wfmanage
 from tasks import config
 
 from workflow_starter import prep_workflow, run_workflow
@@ -13,7 +13,7 @@ TESTING_NO_CLEANUP = True
 def main():
     inputstore, gi = prep_workflow(parse_commandline)
     if inputstore['user'] != config.ADMIN_USER:
-        inputstore = tasks.transfer_workflow_modules(inputstore)
+        inputstore = wfmanage.transfer_workflow_modules(inputstore)
     run_workflow(inputstore, gi)
 
 
