@@ -104,10 +104,11 @@ def create_spectra_db_pairedlist(inputstore):
 @app.task(queue=config.QUEUE_GALAXY_TOOLS)
 def tmp_put_files_in_collection(inputstore):
     print('Putting files from source histories {} in collection in search '
-          'history {}'.format(inputstore['sourcehis'], inputstore['history']))
+          'history {}'.format(inputstore['datasets']['sourcehis'], 
+                              inputstore['history']))
     gi = get_galaxy_instance(inputstore)
     name_id_hdas = []
-    for sourcehis in inputstore['sourcehis']:
+    for sourcehis in inputstore['datasets']['sourcehis']:
         name_id_hdas.extend([(ds['name'], ds['id']) for ds in
                              gi.histories.show_history(sourcehis,
                                                        contents=True,
@@ -851,7 +852,8 @@ def prepare_run(self, inputstore, is_workflow=True):
     return inputstore
 
 
-def run_prep_tools(gi, inputstore):
+@app.task(queue=config.QUEUE_GALAXY_WORKFLOW, bind=True)
+def run_mslookup_spectra(gi, inputstore):
     """Runs mslookup spectra. Not in normal WF
     because needs repeat param setnames passed to them, not yet possible
     to call on WF API"""
