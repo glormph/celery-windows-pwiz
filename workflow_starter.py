@@ -5,6 +5,7 @@ from tasks.galaxy import galaxydata
 from tasks.galaxy import tasks
 from tasks.galaxy import workflow_manage as wfmanage
 from tasks.galaxy import util
+from tasks.galaxy import nonwf_tasks
 from tasks import config
 
 
@@ -79,7 +80,7 @@ def get_modules_and_tasks(inputstore):
     moduuids = {mname: muuid for muuid, mname in inputstore['module_uuids']}
     for modname in inputstore['wf']['modules']:
         if modname[0] == '@':
-            runchain.append(tasks.nonwf_galaxy_tasks[modname].s())
+            runchain.append(nonwf_tasks.tasks[modname]['task'].s())
         else:
             runchain.append(tasks.run_workflow_module.s(moduuids[modname]))
     return runchain

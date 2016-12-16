@@ -862,9 +862,3 @@ def get_collection_names_inputstore():
 
 def get_output_dsets(wf):
     return {k: galaxydata.download_data_names[k] for k in wf['outputs']}
-
-
-nonwf_galaxy_tasks = {'@pout2mzid': run_pout2mzid_on_sets,
-                      '@mergepercolator': merge_percobatches_to_sets,
-                      '@metafiles2pin': run_metafiles2pin,
-                      }
