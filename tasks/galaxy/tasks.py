@@ -682,8 +682,7 @@ def wait_for_dynamic_collection(toolname, gi, inputstore, col_id):
     while True:
         collection = gi.histories.show_dataset_collection(
             inputstore['history'], col_id)
-        if (not collection['populated'] or
-                collection['populated_state'] != 'ok'):
+        if collection['populated'] and collection['populated_state'] == 'ok':
             break
         sleep(10)
 
@@ -753,7 +752,7 @@ def update_inputstore_from_history(gi, datasets, dsetnames, history_id,
                 print('found dset {}'.format(name))
                 if datasets[name]['src'] == 'hdca':
                     datasets[name]['id'] = get_collection_id_in_his(
-                        his_contents, index, name, dset['id'], gi)
+                        his_contents, name, dset['id'], gi, index)
                 elif datasets[name]['src'] == 'hda':
                     datasets[name]['id'] = dset['id']
         sleep(10)
@@ -803,16 +802,21 @@ def check_and_fill_runtime_param(input_val, name, modstep, parammap,
             fill_runtime_param(parammap, inputstore, name, modstep)
 
 
-def get_collection_id_in_his(his_contents, his_index, name, named_dset_id, gi):
-    print('Trying to find collection ID belonging to dataset {} '
-          'and ID {}'.format(name, named_dset_id))
-    labelfound = False
-    # FIXME certain that collection contents are ALWAYS below collection
-    # in history?
-    for dset in his_contents[his_index:]:
-        if dset['name'] == name:
-            labelfound = True
-        if labelfound and dset['type'] == 'collection':
+def get_collection_id_in_his(his_contents, dset_name, named_dset_id, gi,
+                             his_index=False, direction=False):
+    """Search through history contents (passed) to find a collection that
+    contains the named_dset_id. When passing direction=-1, the history will
+    be searched backwards. Handy when having tools that do discover_dataset
+    and populate a collection after creating it."""
+    print('Trying to find collection ID belonging to dataset {}'
+          'and ID {}'.format(dset_name, named_dset_id))
+    if his_index:
+        search_start = his_index
+        direction = 1
+    elif direction == -1:
+        search_start = -1
+    for dset in his_contents[search_start::direction]:
+        if dset['type'] == 'collection':
             dcol = gi.histories.show_dataset_collection(dset['history_id'],
                                                         dset['id'])
             if named_dset_id in [x['object']['id'] for x in dcol['elements']]:
