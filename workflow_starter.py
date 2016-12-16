@@ -110,23 +110,6 @@ def run_workflow(inputstore, gi, existing_spectra=False):
             inputstore['params']['setpatterns'] = sets
         runchain.extend(get_modules_and_tasks(inputstore))
         runchain.extend(tasks.get_download_task_chain())
-#    elif inputstore['run'] and len(inputstore['wf']) == 2:
-#        # run two workflows with a history transition tool in between
-#        inputstore['searchtype'] = inputstore['wf'][0]['searchtype']
-#        firstwf_mods = get_modules_for_workflow(inputstore['wf'][0]['modules'])
-#        second_wf_mods = get_modules_for_workflow(
-#            inputstore['wf'][1]['modules'])
-#        inputstore['module_uuids'] = firstwf_mods + second_wf_mods
-#        inputstore['g_modules'] = tasks.check_modules(
-#            gi, inputstore['module_uuids'])
-#        runchain.extend([tasks.tmp_prepare_run.s()])
-#        runchain.extend([tasks.run_workflow_module.s(mod_id[0])
-#                         for mod_id in firstwf_mods])
-#        runchain.extend(tasks.get_download_task_chain())
-#        runchain.extend([tasks.reuse_history.s()])
-#        runchain.extend([tasks.run_workflow_module.s(mod_id[0])
-#                         for mod_id in second_wf_mods])
-#        runchain.extend(tasks.get_download_task_chain())
     elif inputstore['run'] and inputstore['rerun_his']:
         # runs one workflow with a history to reuse from
         inputstore['module_uuids'] = wfmanage.get_modules_for_workflow(

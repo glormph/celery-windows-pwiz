@@ -5,7 +5,6 @@ import re
 from collections import OrderedDict
 from datetime import datetime
 from time import sleep
-from bioblend import galaxy
 from celery.result import AsyncResult
 
 from tasks import config, dbaccess

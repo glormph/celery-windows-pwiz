@@ -61,8 +61,6 @@ def parse_commandline(inputstore):
     else:
         inputstore['run'] = True
     for name in inputstore['datasets']:
-    #    if name in tasks.get_multidset_names_inputstore():
-    #        continue
         parsename = name.replace(' ', '_')
         if hasattr(args, parsename) and getattr(args, parsename) is not None:
             inputstore['datasets'][name]['id'] = getattr(args, parsename)
@@ -71,11 +69,6 @@ def parse_commandline(inputstore):
         print('Conflicting input, --files-as-sets has been passed but '
               'also set definitions. Exiting.')
         sys.exit(1)
-    #for name in tasks.get_multidset_names_inputstore():
-    #    parsename = name.replace(' ', '_')
-    #    if hasattr(args, parsename) and getattr(args, parsename) is not None:
-    #        inputstore['datasets'][name].append(
-    #            {'src': 'hdca', 'id': getattr(args, parsename)})
     for param in ['setnames', 'setpatterns', 'multiplextype', 'genefield',
                   'perco_ids', 'ppoolsize', 'fastadelim', 'filesassets',
                   'strips', 'strippatterns']:
