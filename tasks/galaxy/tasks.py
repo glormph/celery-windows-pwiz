@@ -288,9 +288,8 @@ def run_pout2mzid_on_sets(self, inputstore):
     specfiles = get_spectrafiles(gi, inputstore)
     specfileppools = [get_filename_index_with_identifier(specfiles, p_id)
                       for p_id in inputstore['params']['perco_ids']]
-    prepoutcols = {}
+    prepoutcols = {'target': [], 'decoy': []}
     for td, perco_col in zip(['target', 'decoy'], percocols):
-        prepoutcols[td] = []
         allmzidfiles = [x for x in get_collection_contents(
             gi, inputstore['history'],
             inputstore['datasets']['msgf {}'.format(td)]['id'])]
@@ -311,14 +310,8 @@ def run_pout2mzid_on_sets(self, inputstore):
                           'mzid|multifile': True,
                           'mzid|mzids': {'src': 'hdca', 'id': mzidcol['id']},
                           'targetdecoy': td, 'schemaskip': True}
-            prepoutcols[td].append(gi.tools.run_tool(
-                inputstore['history'], 'pout2mzid',
-                poutinputs)['output_collections'][0]['id'])
-    # wait until collections are ready
-    for td in ['target', 'decoy']:
-        for prepoutcol in prepoutcols[td]:
-            wait_for_dynamic_collection('pout2mzid', gi, inputstore,
-                                        prepoutcol)
+            prepoutcols[td].append(gi.tools.run_tool(inputstore['history'], 'pout2mzid',
+                                 poutinputs)['output_collections'][0]['id'])
     # repackage pout2mzid set collections into one collection for all sets
     # for both target and decoy
     print('Repackaging pout2mzid collections for search {} in history '
@@ -326,6 +319,7 @@ def run_pout2mzid_on_sets(self, inputstore):
     for td in ['target', 'decoy']:
         poutcol_els = []
         for poutcolid in prepoutcols[td]:
+            wait_for_dynamic_collection('pout2mzid', gi, inputstore, poutcolid)
             poutcol_els.extend([{'src': 'hda', 'id': el['object']['id'],
                                  'name': el['element_identifier']}
                                 for el in gi.histories.show_dataset_collection(
