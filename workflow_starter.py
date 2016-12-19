@@ -61,7 +61,7 @@ def select_workflow():
     workflows = wfmanage.get_workflows()
     for num, wf in enumerate(workflows):
         print(num, wf['name'])
-    while True: 
+    while True:
         pick = input('Which workflow has been run? ')
         try:
             pick = int(pick)
@@ -70,7 +70,7 @@ def select_workflow():
             continue
         else:
             break
-    return {'wf': workflows[pick], 
+    return {'wf': workflows[pick],
             'module_uuids': wfmanage.get_modules_for_workflow(
                 workflows[pick]['modules'])}
 

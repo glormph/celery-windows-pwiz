@@ -2,8 +2,8 @@ workflows = [
     {
         'name': 'IPG, tmt10, ENSEMBL, QE', 'modules': [
             '@collect_source_spectra', '@mslookup_spectra',
-            'quant iso', 'msgf tmt qe', '@metafiles2pin', 'percolator', 
-            '@mergepercolator', 'percolator recalc', '@pout2mzid', 
+            'quant iso', 'msgf tmt qe', '@metafiles2pin', 'percolator',
+            '@mergepercolator', 'percolator recalc', '@pout2mzid',
             'percolator postprocess',
             'psm preproc isobaric ensembl', 'psm proteingroup',
             'psm add deltapi', 'psm post isobaric',
@@ -12,15 +12,16 @@ workflows = [
         'searchtype': 'standard',
         # FIXME only have required inputs, do param parsing before, so have setnames
         # as required but let start_wf decide what they are from filesassets/setnames
-        
+
         'required_params': ['multiplextype', 'denominators', 'setpatterns',
                             'setnames', 'intercepts', 'fr_widths',
                             'strippatterns', 'perco_ids', 'ppoolsize'],
         'required_dsets': ['sourcehis'],
         'not_used_tool_inputs': ['mzidnormalize'],
         'his_inputs': [],
-        'lib_inputs': ['target db', 'modifications', 'biomart map', 
+        'lib_inputs': ['target db', 'modifications', 'biomart map',
                        'pipeptides known db'],
+        # param inputs probably deprecate
         'param_inputs': ['setnames', 'setpatterns', 'filesassets', 'perco_ids',
                          'ppoolsize', 'fastadelim', 'genefield',
                          'multiplextype', 'denominators', 'pipatterns'],
@@ -32,8 +33,8 @@ workflows = [
     {
         'name': 'IPG, labelfree, ENSEMBL, QE', 'modules': [
             '@collect_source_spectra', '@mslookup_spectra',
-            'quant labelfree', 'msgf labelfree qe', '@metafiles2pin', 'percolator', 
-            '@mergepercolator', 'percolator recalc', '@pout2mzid', 
+            'quant labelfree', 'msgf labelfree qe', '@metafiles2pin', 'percolator',
+            '@mergepercolator', 'percolator recalc', '@pout2mzid',
             'percolator postprocess',
             'psm preproc labelfree ensembl', 'psm proteingroup',
             'psm add deltapi', 'psm post labelfree',
@@ -60,7 +61,7 @@ workflows = [
         # DEPRECATE?
         'name': 'rerun IPG tmt10, ENSEMBL, QE', 'modules': [
             '@metafiles2pin', 'percolator', '@mergepercolator',
-            'percolator recalc', '@pout2mzid', 
+            'percolator recalc', '@pout2mzid',
             'percolator postprocess',
             'psm preproc isobaric ensembl', 'psm proteingroup',
             'psm post isobaric', 'peptide protein isobaric', 'gene isobaric',
@@ -74,20 +75,20 @@ workflows = [
     },
     {
         'name': 'varDB, tmt10, QE', 'modules': [
-            'msgf tmt qe', '@metafiles2pin', 'percolator filternovel', 
+            'msgf tmt qe', '@metafiles2pin', 'percolator filternovel',
             '@mergepercolator', 'percolator recalc vardb', '@pout2mzid',
-            'percolator postprocess', 
+            'percolator postprocess',
             'psm preproc isobaric vardb',
             'psm post isobaric vardb', 'peptide vardb isobaric'],
         'searchtype': 'vardb',
         'rerun_rename_labels': {
-            'quant lookup': False, 
+            'quant lookup': False,
             'PSM table target': 'PSM table target normalsearch'},
         'required_inputs': ['PSM table target normalsearch', 'multiplextype',
                             'denominators', 'quant lookup', 'sourcehis'],
         'his_inputs': ['PSM table target normalsearch',
                        'quant lookup'],
-        'lib_inputs': ['target db', 'modifications', 'knownpep db', 
+        'lib_inputs': ['target db', 'modifications', 'knownpep db',
                        'knownpep allpep lookup', 'knownpep tryp lookup',],
         'param_inputs': ['setnames', 'setpatterns', 'filesassets', 'perco_ids',
                          'ppoolsize', 'multiplextype', 'denominators'],
@@ -97,20 +98,20 @@ workflows = [
     },
     {
         'name': 'varDB, labelfree, QE', 'modules': [
-            'msgf labelfree qe', '@metafiles2pin', 'percolator filternovel', 
+            'msgf labelfree qe', '@metafiles2pin', 'percolator filternovel',
             '@mergepercolator', 'percolator recalc vardb', '@pout2mzid',
-            'percolator postprocess', 
+            'percolator postprocess',
             'psm preproc labelfree vardb',
             'psm post labelfree', 'peptide vardb labelfree'],
         'searchtype': 'vardb',
         'rerun_rename_labels': {
-            'quant lookup': False, 
+            'quant lookup': False,
             'PSM table target': 'PSM table target normalsearch'},
         'required_inputs': ['PSM table target normalsearch', 'quant lookup',
                             'sourcehis'],
         'his_inputs': ['PSM table target normalsearch',
                        'quant lookup'],
-        'lib_inputs': ['target db', 'modifications', 'knownpep db', 
+        'lib_inputs': ['target db', 'modifications', 'knownpep db',
                        'knownpep allpep lookup', 'knownpep tryp lookup',],
         'param_inputs': ['setnames', 'setpatterns', 'filesassets', 'perco_ids',
                          'ppoolsize'],
@@ -121,20 +122,20 @@ workflows = [
     {
         'name': '6RF, tmt10, QE', 'modules': [
             '@create_6rf_split_dbs', '@create_spectra_db_pairedlist',
-            'msgf prefrac tmt qe', '@metafiles2pin', 'percolator filternovel', 
+            'msgf prefrac tmt qe', '@metafiles2pin', 'percolator filternovel',
             '@mergepercolator', 'percolator recalc', '@pout2mzid',
-            'percolator postprocess', 
+            'percolator postprocess',
             'psm preproc isobaric vardb',
             'psm post isobaric vardb', 'peptide noncentric isobaric'],
         'searchtype': 'vardb',
         'rerun_rename_labels': {
-            'quant lookup': False, 
+            'quant lookup': False,
             'PSM table target': 'PSM table target normalsearch'},
         'required_inputs': ['PSM table target normalsearch', 'multiplextype',
                             'denominators', 'quant lookup', 'sourcehis'],
         'his_inputs': ['PSM table target normalsearch',
                        'quant lookup'],
-        'lib_inputs': ['target db', 'modifications', 'knownpep db', 
+        'lib_inputs': ['target db', 'modifications', 'knownpep db',
                        'knownpep allpep lookup', 'knownpep tryp lookup',],
         'param_inputs': ['setnames', 'setpatterns', 'filesassets', 'perco_ids',
                          'ppoolsize', 'multiplextype', 'denominators'],
@@ -175,7 +176,7 @@ workflows = [
 #            'psm post isobaric vardb', 'peptide noncentric isobaric'],
 #        'searchtype': 'vardb',
 #        'rerun_rename_labels': {
-#            'quant lookup': False, 
+#            'quant lookup': False,
 #            'PSM table target': 'PSM table target normalsearch'},
 #        'not_outputs': ['protein table', 'gene table', 'symbol table'],
 #    },

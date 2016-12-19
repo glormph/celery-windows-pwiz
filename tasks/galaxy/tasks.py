@@ -103,7 +103,7 @@ def create_spectra_db_pairedlist(inputstore):
 @app.task(queue=config.QUEUE_GALAXY_TOOLS)
 def tmp_put_files_in_collection(inputstore):
     print('Putting files from source histories {} in collection in search '
-          'history {}'.format(inputstore['datasets']['sourcehis'], 
+          'history {}'.format(inputstore['datasets']['sourcehis'],
                               inputstore['history']))
     gi = get_galaxy_instance(inputstore)
     name_id_hdas = []

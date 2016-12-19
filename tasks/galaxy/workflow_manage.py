@@ -39,7 +39,7 @@ def check_modules(gi, modules):
 
 
 def check_all_modules(inputstore):
-    admin = {'galaxy_url': inputstore['galaxy_url'], 
+    admin = {'galaxy_url': inputstore['galaxy_url'],
              'apikey': config.ADMIN_APIKEY}
     gi_admin = get_galaxy_instance(admin)
     remote_mods = get_remote_modules(gi_admin)
@@ -51,7 +51,7 @@ def check_all_modules(inputstore):
         absent_mods = {x: modules[x] for x in
                        get_absent_mods(remote_mods, modules.keys())}
         if not absent_mods:
-            allmodules.update({mod: remote_mods[uuid] for uuid, mod 
+            allmodules.update({mod: remote_mods[uuid] for uuid, mod
                                in modules.items()})
             print('{}  -  {}  - OK'.format(num, wf['name']))
         else:
@@ -67,8 +67,9 @@ def get_workflows():
 
 
 def get_modules_for_workflow(wf_mods):
-    return [(galaxydata.wf_modules[m_name], m_name) for m_name in wf_mods if m_name[0] != '@']
-        
+    return [(galaxydata.wf_modules[m_name], m_name) for m_name in wf_mods
+            if m_name[0] != '@']
+
 
 def get_remote_modules(gi):
     return {mod['latest_workflow_uuid']: mod
@@ -111,7 +112,7 @@ def get_absent_mods(remote_mods, mods_to_check):
 
 def get_library_dsets(gi):
     dset_names_libname = {'target db': 'databases', 'biomart map': 'marts',
-                          'modifications': 'modifications', 
+                          'modifications': 'modifications',
                           'pipeptides known db': 'pipeptides'}
     output = {}
     for name, libtype in dset_names_libname.items():
@@ -141,8 +142,10 @@ def get_library_dsets(gi):
 
 
 def test_workflow_specs():
-    # FIXME hardcoded!
-    inputstore = {'galaxy_url': config.GALAXY_URL, 'apikey': config.USERS['jorrit'][1], 'module_uuids': galaxydata.wf_modules}
+    # FIXME hardcoded! remove after testing
+    inputstore = {'galaxy_url': config.GALAXY_URL,
+                  'apikey': config.USERS['jorrit'][1],
+                  'module_uuids': galaxydata.wf_modules}
     check_workflow_mod_connectivity(galaxydata.workflows[0:2], inputstore)
 
 
@@ -201,7 +204,6 @@ def check_workflow_inputs_ok(mod, mod_inputs, collected_inputs):
                   'before a run'.format(mod, modinput))
             inputs_ok = False
     return inputs_ok
-            
 
 
 def get_workflow_params(wf_json):
@@ -224,7 +226,7 @@ def get_workflow_params(wf_json):
                         composed_name = '{}|{}'.format(input_name, subname)
                         if is_runtime_param(subval, composed_name, step):
                             yield {'tool_id': step['tool_id'],
-                                   'name': composed_name, 
+                                   'name': composed_name,
                                    'storename': input_name}
                 else:
                     # simple runtime value check and fill with inputstore value
@@ -245,11 +247,11 @@ def get_workflow_outputs(wf_json):
         if 'post_job_actions' in step:
             for pja in step['post_job_actions']:
                 try:
-                    outputs.append(step['post_job_actions'][pja
-                                        ]['action_arguments']['newname'])
+                    outputs.append(step['post_job_actions'
+                                        ][pja]['action_arguments']['newname'])
                 except KeyError:
                     pass
-    return outputs 
+    return outputs
 
 
 def initialize_datasets():
