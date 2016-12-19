@@ -46,7 +46,6 @@ def create_spectra_db_pairedlist(inputstore):
     speccol = get_collection_contents(gi, inputstore['history'],
                                       dsets['spectra']['id'])
     setpatterns, pipatterns = params['setpatterns'], params['strippatterns']
-    stripnames = [x.split(':')[0] for x in params['strips']]
 
     def get_coll_name_id(collection):
         return ((x['object']['name'], x['object']['id'])
@@ -57,7 +56,7 @@ def create_spectra_db_pairedlist(inputstore):
         pidbcol = {}
         for set_id in setpatterns:
             pidbcol[set_id] = {}
-            for pipat, stripname in zip(pipatterns, stripnames):
+            for pipat, stripname in zip(pipatterns, params['strips']):
                 pidbcol[set_id][pipat] = {
                     # Hardcoded fr matcher for db
                     int(re.sub('.*fr([0-9][0-9]).*', r'\1',
@@ -382,7 +381,6 @@ def create_6rf_split_dbs(inputstore):
     prep_inputs = get_input_map(mod, dsets)
     # FIXME this is hardcode, but follows usual standards. CHange if necessary
     # How to deal with 60a 60b, reruns etc? Ask Rui.
-    strips = [galaxydata.strips[x] for x in params['strips']]
     prep_wf_params = {'toolshed.g2.bx.psu.edu/repos/bgruening/text_processing/'
                       'tp_sed_tool/1.0.0':
                       {'code': 's/{}/\\1/;'
@@ -390,10 +388,10 @@ def create_6rf_split_dbs(inputstore):
                        ''.format(params['fr_matcher'])},
                       'delta_pi_peptable':
                       {'strippatterns': ' '.join(params['strippatterns']),
-                       'fr_widths': ' '.join([str(x['fr_width'])
-                                              for x in strips]),
-                       'intercepts': ' '.join([str(x['intercept'])
-                                              for x in strips]),
+                       'fr_widths': ' '.join([str(x) for x in
+                                              params['fr_width']]),
+                       'intercepts': ' '.join([str(x) for x in
+                                               params['intercept']]),
                        }}
     gi.workflows.invoke_workflow(mod['id'], inputs=prep_inputs,
                                  history_id=inputstore['history'],
@@ -426,16 +424,17 @@ def create_6rf_split_dbs(inputstore):
     pepshift_uuid = [uuid for uuid, ds in mod_inputs.items()
                      if ds['id'] == 'dummy peptable'][0]
     dsnames = []
-    for stripname in params['strips']:
-        strip = galaxydata.strips[stripname]
+
+    for stripix, stripname in enumerate(params['strips']):
         for setpattern, setname in zip(params['setpatterns'],
                                        params['setnames']):
             mod_inputs[pepshift_uuid] = splitpeptables[setname][stripname]
-            wfparams = {'6rf_splitter': {'intercept': strip['intercept'],
-                                         'tolerance': strip['pi_tolerance'],
-                                         'fr_width': strip['fr_width'],
-                                         'fr_amount': strip['fr_amount'],
-                                         'reverse': strip['reverse']}}
+            wfparams = {'6rf_splitter':
+                        {'intercept': params['intercept'][stripix],
+                         'tolerance': params['pi_tolerance'][stripix],
+                         'fr_width': params['fr_width'][stripix],
+                         'fr_amount': params['fr_amount'][stripix],
+                         'reverse': params['reverse'][stripix]}}
             replace = {'newname': get_prefracdb_name(setpattern, stripname)}
             gi.workflows.invoke_workflow(galaxydata.wf_modules['6rf split'],
                                          inputs=mod_inputs, params=wfparams,
