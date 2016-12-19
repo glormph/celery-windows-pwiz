@@ -101,13 +101,8 @@ def run_workflow(inputstore, gi, existing_spectra=False):
                         tasks.tmp_put_files_in_collection.s(),
                         tasks.check_dsets_ok.s(), tasks.tmp_prepare_run.s()]
         else:
-            runchain = [tasks.check_dsets_ok.s(inputstore), tasks.tmp_prepare_run.s()]
-        if inputstore['params']['filesassets']:
-            spectracollection = gi.histories.show_dataset_collection(
-                inputstore['history'], inputstore['datasets']['spectra']['id'])
-            sets = [x['object']['name'] for x in spectracollection['elements']]
-            inputstore['params']['setnames'] = sets
-            inputstore['params']['setpatterns'] = sets
+            runchain = [tasks.check_dsets_ok.s(inputstore),
+                        tasks.tmp_prepare_run.s()]
         runchain.extend(get_modules_and_tasks(inputstore))
         runchain.extend(tasks.get_download_task_chain())
     elif inputstore['run'] and inputstore['rerun_his']:

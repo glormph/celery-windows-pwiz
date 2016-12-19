@@ -3,6 +3,7 @@ import argparse
 
 from tasks.galaxy import workflow_manage as wfmanage
 from tasks import config
+from tasks.galaxy import galaxydata
 
 from workflow_starter import prep_workflow, run_workflow
 
@@ -79,6 +80,26 @@ def parse_commandline(inputstore):
     inputstore['base_searchname'] = args.searchname
     inputstore['wf_num'] = args.analysisnr
     inputstore['rerun_his'] = args.reuse_history
+    parse_special_inputs(inputstore)
+
+
+def parse_special_inputs(inputstore, gi):
+    """Command line interface has some special inputs. Strips, filesassets,
+    """
+    params = inputstore['params']
+    if params['filesassets']:
+        spectracollection = gi.histories.show_dataset_collection(
+            inputstore['history'], inputstore['datasets']['spectra']['id'])
+        sets = [x['object']['name'] for x in spectracollection['elements']]
+        params['setnames'] = sets
+        params['setpatterns'] = sets
+    if params['strips']:
+        for strip in [galaxydata.strips[x] for x in params['strips']]:
+            for stripkey, stripval in strip.items():
+                try:
+                    params[stripkey].append(stripval)
+                except KeyError:
+                    params[stripkey] = [stripval]
 
 
 if __name__ == '__main__':
