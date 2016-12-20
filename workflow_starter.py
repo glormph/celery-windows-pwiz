@@ -86,6 +86,52 @@ def get_modules_and_tasks(inputstore):
     return runchain
 
 
+def check_workflow_mod_connectivity(workflows, inputstore, dry_run=False):
+    """This method has 3 uses:
+        - Seeing if all datasets have been supplied for a run
+        - Seeing if all datasets are supplied in a restarted run
+        - Dry run a workflow to test if workflow modules are connected
+    """
+    gi = util.gget_galaxy_instance(inputstore)
+    mods_inputs = {}
+    mods_outputs = {}
+    galaxy_modules = wfmanage.check_all_modules(inputstore)
+    connect_ok = True
+    for wf in workflows:
+        print('Checking workflow connectivity for {}'.format(wf['name']))
+        if dry_run:
+            allinputs = (wf['lib_inputs'] + wf['required_dsets'] +
+                         wf['required_params'])
+        else:
+            allinputs = [x for x in inputstore['datasets']
+                         if x['id'] is not None]
+            allinputs += [x for x in inputstore['params']]
+        allinputs += wf['not_used_tool_inputs']
+        for mod in wf['modules']:
+            if mod[0] == '@' and not mod in mods_inputs:
+                mods_inputs[mod] = nonwf_tasks.tasks[mod]['inputs']
+                mods_inputs[mod].extend(nonwf_tasks.tasks[mod]['params'])
+                mods_outputs[mod] = nonwf_tasks.tasks[mod]['outputs']
+            elif not mod in mods_inputs:
+                gmod = gi.workflows.show_workflow(galaxy_modules[mod]['id'])
+                mods_inputs[mod] = [x[0] for x in
+                                    wfmanage.get_workflow_inputs(gmod)]
+                for param in wfmanage.get_workflow_params(gmod):
+                    mods_inputs[mod].append(param['name'])
+                mod_uuid = galaxydata.wf_modules[mod]
+                wf_json = gi.workflows.export_workflow_json(mod_uuid)
+                mods_outputs[mod] = wfmanage.get_workflow_outputs(wf_json)
+            if not wfmanage.check_workflow_inputs_ok(mod, mods_inputs[mod],
+                                                     allinputs):
+                connect_ok = False
+            allinputs.extend(mods_outputs[mod])
+    if not connect_ok:
+        print('Problems in workflow connectivity')
+    else:
+        print('Workflows ok')
+    return connect_ok
+
+
 def run_workflow(inputstore, gi, existing_spectra=False):
     """Runs a wf as specified in inputstore var"""
     inputstore['searchtype'] = inputstore['wf']['searchtype']
