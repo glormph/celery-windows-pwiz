@@ -25,6 +25,8 @@ def parse_commandline(inputstore):
     parser.add_argument('--outshare', dest='outshare')
     parser.add_argument('--show', dest='show', action='store_const',
                         default=False, const=True)
+    parser.add_argument('--test', dest='connectivity', action='store_const',
+                        default=False, const=True)
     parser.add_argument('--reuse-history', dest='reuse_history')
     parser.add_argument('-w', dest='analysisnr', type=int)
     parser.add_argument('--sourcehists', dest='sourcehistories', nargs='+')
@@ -59,6 +61,8 @@ def parse_commandline(inputstore):
     inputstore['sourcehis'] = args.sourcehistories
     if args.show:
         inputstore['run'] = 'show'
+    elif args.connectivity:
+        inputstore['run'] = 'connectivity'
     else:
         inputstore['run'] = True
     for name in inputstore['datasets']:

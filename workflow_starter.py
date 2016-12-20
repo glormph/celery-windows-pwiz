@@ -20,6 +20,10 @@ def prep_workflow(parsefun, parsespecial):
     if inputstore['run'] == 'show':
         wfmanage.check_all_modules(inputstore)
         sys.exit()
+    if inputstore['run'] == 'connectivity':
+        wfmanage.check_workflow_mod_connectivity(galaxydata.workflows,
+                                                 inputstore, dry_run=True)
+        sys.exit()
     else:
         inputstore['wf'] = wfmanage.get_workflows()[inputstore['wf_num']]
         # Input checking. In UI we just demand inputs on the spot by reading
