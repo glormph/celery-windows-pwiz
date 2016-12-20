@@ -21,7 +21,7 @@ def prep_workflow(parsefun, parsespecial):
         wfmanage.check_all_modules(inputstore)
         sys.exit()
     if inputstore['run'] == 'connectivity':
-        wfmanage.check_workflow_mod_connectivity(galaxydata.workflows,
+        check_workflow_mod_connectivity(galaxydata.workflows,
                                                  inputstore, dry_run=True)
         sys.exit()
     else:
@@ -98,7 +98,7 @@ def check_workflow_mod_connectivity(workflows, inputstore, dry_run=False):
         - Seeing if all datasets are supplied in a restarted run
         - Dry run a workflow to test if workflow modules are connected
     """
-    gi = util.gget_galaxy_instance(inputstore)
+    gi = util.get_galaxy_instance(inputstore)
     mods_inputs = {}
     mods_outputs = {}
     galaxy_modules = wfmanage.check_all_modules(inputstore)
