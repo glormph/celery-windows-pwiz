@@ -12,13 +12,13 @@ TESTING_NO_CLEANUP = True
 
 
 def main():
-    inputstore, gi = prep_workflow(parse_commandline)
+    inputstore, gi = prep_workflow(parse_commandline, parse_special_inputs)
     if inputstore['user'] != config.ADMIN_USER:
         inputstore = wfmanage.transfer_workflow_modules(inputstore)
     run_workflow(inputstore, gi)
 
 
-def parse_commandline(inputstore, gi):
+def parse_commandline(inputstore):
     parser = argparse.ArgumentParser(
         formatter_class=argparse.RawTextHelpFormatter)
     parser.add_argument('-u', dest='user')
@@ -80,7 +80,6 @@ def parse_commandline(inputstore, gi):
     inputstore['base_searchname'] = args.searchname
     inputstore['wf_num'] = args.analysisnr
     inputstore['rerun_his'] = args.reuse_history
-    parse_special_inputs(inputstore)
 
 
 def parse_special_inputs(inputstore, gi):

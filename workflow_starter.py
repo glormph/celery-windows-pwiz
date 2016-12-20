@@ -9,13 +9,14 @@ from tasks.galaxy import nonwf_tasks
 from tasks import config
 
 
-def prep_workflow(parsefun):
+def prep_workflow(parsefun, parsespecial):
     inputstore = {'params': {},
                   'galaxy_url': config.GALAXY_URL,
                   }
     inputstore['datasets'] = wfmanage.initialize_datasets()
+    parsefun(inputstore)
     gi = util.get_galaxy_instance(inputstore)
-    parsefun(inputstore, gi)
+    parsespecial(inputstore, gi)
     if inputstore['run'] == 'show':
         wfmanage.check_all_modules(inputstore)
         sys.exit()
