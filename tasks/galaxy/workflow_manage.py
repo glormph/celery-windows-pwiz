@@ -146,10 +146,16 @@ def test_workflow_specs():
     inputstore = {'galaxy_url': config.GALAXY_URL,
                   'apikey': config.USERS['jorrit'][1],
                   'module_uuids': galaxydata.wf_modules}
-    check_workflow_mod_connectivity(galaxydata.workflows[0:2], inputstore)
+    check_workflow_mod_connectivity(galaxydata.workflows[0:2], inputstore,
+                                    dry_run=True)
 
 
-def check_workflow_mod_connectivity(workflows, inputstore):
+def check_workflow_mod_connectivity(workflows, inputstore, dry_run=False):
+    """This method has 3 uses:
+        - Seeing if all datasets have been supplied for a run
+        - Seeing if all datasets are supplied in a restarted run
+        - Dry run a workflow to test if workflow modules are connected
+    """
     gi = get_galaxy_instance(inputstore)
     mods_inputs = {}
     mods_outputs = {}
@@ -157,8 +163,14 @@ def check_workflow_mod_connectivity(workflows, inputstore):
     connect_ok = True
     for wf in workflows:
         print('Checking workflow connectivity for {}'.format(wf['name']))
-        allinputs = (wf['lib_inputs'] + wf['required_dsets'] + 
-                     wf['required_params'] + wf['not_used_tool_inputs'])
+        if dry_run:
+            allinputs = (wf['lib_inputs'] + wf['required_dsets'] +
+                         wf['required_params'])
+        else:
+            allinputs = [x for x in inputstore['datasets']
+                         if x['id'] is not None]
+            allinputs += [x for x in inputstore['params']]
+        allinputs += wf['not_used_tool_inputs']
         for mod in wf['modules']:
             if mod[0] == '@' and not mod in mods_inputs:
                 mods_inputs[mod] = nonwf_tasks.tasks[mod]['inputs']
@@ -180,6 +192,7 @@ def check_workflow_mod_connectivity(workflows, inputstore):
         print('Problems in workflow connectivity')
     else:
         print('Workflows ok')
+    return connect_ok
 
 
 def is_runtime_param(val, name, step):
