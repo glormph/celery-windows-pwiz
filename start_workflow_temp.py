@@ -18,7 +18,7 @@ def main():
     run_workflow(inputstore, gi)
 
 
-def parse_commandline(inputstore):
+def parse_commandline(inputstore, gi):
     parser = argparse.ArgumentParser(
         formatter_class=argparse.RawTextHelpFormatter)
     parser.add_argument('-u', dest='user')

@@ -14,7 +14,8 @@ def prep_workflow(parsefun):
                   'galaxy_url': config.GALAXY_URL,
                   }
     inputstore['datasets'] = wfmanage.initialize_datasets()
-    parsefun(inputstore)
+    gi = util.get_galaxy_instance(inputstore)
+    parsefun(inputstore, gi)
     if inputstore['run'] == 'show':
         wfmanage.check_all_modules(inputstore)
         sys.exit()
