@@ -92,7 +92,7 @@ def parse_special_inputs(inputstore, gi):
         sets = [x['object']['name'] for x in spectracollection['elements']]
         params['setnames'] = sets
         params['setpatterns'] = sets
-    if params['strips']:
+    if 'strips' in params:
         for strip in [galaxydata.strips[x] for x in params['strips']]:
             for stripkey, stripval in strip.items():
                 try:
