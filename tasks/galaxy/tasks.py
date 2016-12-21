@@ -375,26 +375,6 @@ def create_6rf_split_dbs(inputstore):
     print('Creating 6RF split DB')
     gi = get_galaxy_instance(inputstore)
     params, dsets = inputstore['params'], inputstore['datasets']
-    # run WF to prep peptable to get strip shifts for 6RF split
-    mod = gi.workflows.show_workflow(galaxydata.wf_modules['6rf preparation'])
-    prep_inputs = get_input_map(mod, dsets)
-    # FIXME this is hardcode, but follows usual standards. CHange if necessary
-    # How to deal with 60a 60b, reruns etc? Ask Rui.
-    prep_wf_params = {'toolshed.g2.bx.psu.edu/repos/bgruening/text_processing/'
-                      'tp_sed_tool/1.0.0':
-                      {'code': 's/{}/\\1/;'
-                       's/Uploaded files/Fractions/'
-                       ''.format(params['fr_matcher'])},
-                      'delta_pi_peptable':
-                      {'strippatterns': ' '.join(params['strippatterns']),
-                       'fr_widths': ' '.join([str(x) for x in
-                                              params['fr_width']]),
-                       'intercepts': ' '.join([str(x) for x in
-                                               params['intercept']]),
-                       }}
-    gi.workflows.invoke_workflow(mod['id'], inputs=prep_inputs,
-                                 history_id=inputstore['history'],
-                                 params=prep_wf_params)
     update_inputstore_from_history(gi, dsets, ['peptable MS1 deltapi'],
                                    inputstore['history'],
                                    'prep predpi peptable')
