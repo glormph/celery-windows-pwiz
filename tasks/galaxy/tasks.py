@@ -44,7 +44,7 @@ def create_spectra_db_pairedlist(inputstore):
     params = inputstore['params']
     speccol = get_collection_contents(gi, inputstore['history'],
                                       dsets['spectra']['id'])
-    setpatterns, pipatterns = params['setpatterns'], params['strippatterns']
+    setpatterns, pipatterns = params['setpatterns'], params['strippatternlist']
 
     def get_coll_name_id(collection):
         return ((x['object']['name'], x['object']['id'])
@@ -408,7 +408,7 @@ def create_6rf_split_dbs(inputstore):
     splitpeptables = {x: {} for x in params['setnames']}
     for setname, peptable_id in peptable_ds.items():
         pep_in = {'src': 'hda', 'id': peptable_id}
-        for pipat, stripname in zip(params['strippatterns'], params['strips']):
+        for pipat, stripname in zip(params['strippatternlist'], params['strips']):
             greppat = 'Uploaded|{}'.format(pipat)
             pipep = gi.tools.run_tool(inputstore['history'], greptool,
                                       tool_inputs={'infile': pep_in,
@@ -429,11 +429,11 @@ def create_6rf_split_dbs(inputstore):
                                        params['setnames']):
             mod_inputs[pepshift_uuid] = splitpeptables[setname][stripname]
             wfparams = {'6rf_splitter':
-                        {'intercept': params['intercept'][stripix],
-                         'tolerance': params['pi_tolerance'][stripix],
-                         'fr_width': params['fr_width'][stripix],
-                         'fr_amount': params['fr_amount'][stripix],
-                         'reverse': params['reverse'][stripix]}}
+                        {'intercept': params['interceptlist'][stripix],
+                         'tolerance': params['pi_tolerances'][stripix],
+                         'fr_width': params['fr_widthlist'][stripix],
+                         'fr_amount': params['fr_amounts'][stripix],
+                         'reverse': params['reverses'][stripix]}}
             replace = {'newname': get_prefracdb_name(setpattern, stripname)}
             gi.workflows.invoke_workflow(galaxydata.wf_modules['6rf split'],
                                          inputs=mod_inputs, params=wfparams,

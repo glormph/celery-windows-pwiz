@@ -97,12 +97,21 @@ def parse_special_inputs(inputstore, gi):
         params['setnames'] = sets
         params['setpatterns'] = sets
     if 'strips' in params:
+        stripkeys = []
         for strip in [galaxydata.strips[x] for x in params['strips']]:
             for stripkey, stripval in strip.items():
+                plural_key = '{}s'.format(stripkey)
+                stripkeys.append(plural_key)
                 try:
-                    params[stripkey].append(stripval)
+                    params[plural_key].append(stripval)
                 except KeyError:
-                    params[stripkey] = [stripval]
+                    params[plural_key] = [stripval]
+        for listkey in ['strippatternlist', 'interceptlist', 'fr_widthlist']:
+            orig_key = listkey.replace('list', 's')
+            params[listkey] = params[orig_key][:]
+            if orig_key == 'strippatterns':
+                params[orig_key] = ['"{}"'.format(x) for x in params[orig_key]]
+            params[orig_key] = ' '.join(params[orig_key])
     if 'fr_matcher' in params:
         params['code'] = ('s/{}/\\1/;s/Uploaded files/'
                           'Fractions/'.format(params['fr_matcher']))
