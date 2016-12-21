@@ -103,6 +103,9 @@ def parse_special_inputs(inputstore, gi):
                     params[stripkey].append(stripval)
                 except KeyError:
                     params[stripkey] = [stripval]
+    if 'fr_matcher' in params:
+        params['code'] = ('s/{}/\\1/;s/Uploaded files/'
+                          'Fractions/'.format(params['fr_matcher']))
 
 
 if __name__ == '__main__':
