@@ -117,7 +117,7 @@ def parse_special_inputs(inputstore, gi):
             params[listkey] = params[orig_key][:]
             if orig_key == 'strippatterns':
                 params[orig_key] = ['"{}"'.format(x) for x in params[orig_key]]
-            params[orig_key] = ' '.join(params[orig_key])
+            params[orig_key] = ' '.join([str(x) for x in params[orig_key]])
     if 'fr_matcher' in params:
         params['code'] = ('s/{}/\\1/;s/Uploaded files/'
                           'Fractions/'.format(params['fr_matcher']))
