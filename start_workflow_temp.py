@@ -29,7 +29,7 @@ def parse_commandline(inputstore):
                         default=False, const=True)
     parser.add_argument('--reuse-history', dest='reuse_history')
     parser.add_argument('-w', dest='analysisnr', type=int)
-    parser.add_argument('--sourcehists', dest='sourcehistories', nargs='+')
+    parser.add_argument('--sourcehists', dest='sourcehis', nargs='+')
     parser.add_argument('--name', dest='searchname')
     parser.add_argument('--files-as-sets', dest='filesassets', default=False,
                         action='store_const', const=True)
@@ -58,17 +58,21 @@ def parse_commandline(inputstore):
     inputstore['user'] = args.user
     inputstore['apikey'] = config.USERS[args.user][1]
     inputstore['outshare'] = args.outshare
-    inputstore['sourcehis'] = args.sourcehistories
     if args.show:
         inputstore['run'] = 'show'
     elif args.connectivity:
         inputstore['run'] = 'connectivity'
     else:
         inputstore['run'] = True
-    for name in inputstore['datasets']:
+    for name in (wfmanage.get_flatfile_names_inputstore() + 
+                 wfmanage.get_collection_names_inputstore()):
         parsename = name.replace(' ', '_')
         if hasattr(args, parsename) and getattr(args, parsename) is not None:
             inputstore['datasets'][name]['id'] = getattr(args, parsename)
+    for name in wfmanage.get_other_names_inputstore():
+        parsename = name.replace(' ', '_')
+        if hasattr(args, parsename) and getattr(args, parsename) is not None:
+            inputstore['datasets'][name] = getattr(args, parsename)
     if args.filesassets and (args.setnames is not None or
                              args.setpatterns is not None):
         print('Conflicting input, --files-as-sets has been passed but '

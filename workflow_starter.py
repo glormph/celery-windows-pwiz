@@ -109,8 +109,10 @@ def check_workflow_mod_connectivity(workflows, inputstore, dry_run=False):
             allinputs = (wf['lib_inputs'] + wf['required_dsets'] +
                          wf['required_params'])
         else:
-            allinputs = [x for x in inputstore['datasets']
-                         if x['id'] is not None]
+            allinputs = [x for x, val in inputstore['datasets'].items()
+                         if type(val) == dict and val['id'] is not None]
+            allinputs += [x for x, val in inputstore['datasets'].items()
+                          if type(val) != dict and val is not None]
             allinputs += [x for x in inputstore['params']]
         allinputs += wf['not_used_tool_inputs']
         for mod in wf['modules']:
