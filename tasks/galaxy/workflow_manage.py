@@ -110,15 +110,22 @@ def get_absent_mods(remote_mods, mods_to_check):
     return absentmods
 
 
-def get_library_dsets(gi):
-    dset_names_libname = {'target db': 'databases', 'biomart map': 'marts',
+def get_library_dsets(gi, lib_dsets_required):
+    dset_names_libname = {'target db': 'databases', 
+                          'target db': 'databases', 
+                          'knownpep db': 'databases',
+                          'knownpep allpep lookup': 'lookups',
+                          'knownpep tryp lookup': 'lookups',
+                          'biomart map': 'marts',
                           'modifications': 'modifications',
-                          'pipeptides known db': 'pipeptides'}
+                          'pipeptides known db': 'pipeptides',
+                          }
     output = {}
-    for name, libtype in dset_names_libname.items():
+    for req_libdset in lib_dsets_required:
+        libtype = dset_names_libname[req_libdset]
         dsets = gi.libraries.show_library(galaxydata.libraries[libtype],
                                           contents=True)
-        print('Select a {} dataset from {}, or enter to skip'.format(name,
+        print('Select a {} dataset from {}, or enter to skip'.format(req_libdset,
                                                                      libtype))
         print('--------------------')
         dsets = [x for x in dsets if x['type'] == 'file']
@@ -136,8 +143,8 @@ def get_library_dsets(gi):
                 continue
             break
         if pick != '':
-            output[name] = {'src': 'ld', 'id': dsets[pick]['id'],
-                            'galaxy_name': dsets[pick]['name']}
+            output[req_libdset] = {'src': 'ld', 'id': dsets[pick]['id'],
+                                   'galaxy_name': dsets[pick]['name']}
     return output
 
 

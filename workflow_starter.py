@@ -56,7 +56,7 @@ def prep_workflow(parsefun, parsespecial):
         if input_error:
             sys.exit(1)
         gi = util.get_galaxy_instance(inputstore)
-        libdsets = wfmanage.get_library_dsets(gi)
+        libdsets = wfmanage.get_library_dsets(gi, inputstore['wf']['lib_inputs'])
         inputstore['datasets'].update(libdsets)
         print('Using datasets from library:', libdsets)
     return inputstore, gi
