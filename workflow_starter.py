@@ -31,32 +31,31 @@ def prep_workflow(parsefun, parsespecial):
         # can be a start
         input_error = False
         # Library inputs are not checked because they are asked for
-        for in_dset in inputstore['wf']['his_inputs']:
-            if in_dset not in inputstore['wf']['required_inputs']:
+        for in_dset in inputstore['datasets']:
+            if in_dset not in inputstore['wf']['required_dsets']:
                 continue
-            elif inputstore['datasets'][in_dset]['id'] is None:
-                print('Dataset {} not specified. Exiting.'.format(in_dset))
+            elif in_dset in wfmanage.get_other_names_inputstore():
+                checkval = inputstore['datasets'][in_dset]
+            else:
+                checkval = inputstore['datasets'][in_dset]['id']
+            if checkval is None:
+                print('Dataset or parameter {} not specified. '
+                      'Exiting.'.format(in_dset))
                 input_error = True
-        for in_param in inputstore['wf']['param_inputs']:
-            if in_param not in inputstore['wf']['required_inputs']:
-                continue
-            elif (in_param not in inputstore['params'] or
+        for in_param in inputstore['wf']['required_params']:
+            if (in_param not in inputstore['params'] or
                     inputstore['params'][in_param] is None):
-                print('Required parameter {} not specified. '
-                      'Exiting.'.format(in_param))
-                input_error = True
-        for in_param in inputstore['wf']['other_inputs']:
-            if in_param not in inputstore['wf']['required_inputs']:
-                continue
-            elif (in_param not in inputstore or
-                    inputstore[in_param] is None):
                 print('Required parameter {} not specified. '
                       'Exiting.'.format(in_param))
                 input_error = True
         if input_error:
             sys.exit(1)
+        print('All data locally defined as required has been passed')
         libdsets = wfmanage.get_library_dsets(gi, inputstore['wf']['lib_inputs'])
         inputstore['datasets'].update(libdsets)
+        print(inputstore['params'])
+        if not check_workflow_mod_connectivity([inputstore['wf']], inputstore):
+            sys.exit(1)
         print('Using datasets from library:', libdsets)
     return inputstore, gi
 
