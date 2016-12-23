@@ -21,8 +21,8 @@ def prep_workflow(parsefun, parsespecial):
         wfmanage.check_all_modules(inputstore)
         sys.exit()
     if inputstore['run'] == 'connectivity':
-        check_workflow_mod_connectivity(galaxydata.workflows,
-                                                 inputstore, dry_run=True)
+        check_workflow_mod_connectivity(galaxydata.workflows, inputstore,
+                                        dry_run=True)
         sys.exit()
     else:
         inputstore['wf'] = wfmanage.get_workflows()[inputstore['wf_num']]
@@ -55,7 +55,6 @@ def prep_workflow(parsefun, parsespecial):
                 input_error = True
         if input_error:
             sys.exit(1)
-        gi = util.get_galaxy_instance(inputstore)
         libdsets = wfmanage.get_library_dsets(gi, inputstore['wf']['lib_inputs'])
         inputstore['datasets'].update(libdsets)
         print('Using datasets from library:', libdsets)
@@ -152,7 +151,6 @@ def run_workflow(inputstore, gi, existing_spectra=False):
             gi, inputstore['module_uuids'])
         if inputstore['datasets']['spectra']['id'] is None:
             runchain = [tasks.tmp_create_history.s(inputstore),
-                        tasks.tmp_put_files_in_collection.s(),
                         tasks.check_dsets_ok.s(), tasks.tmp_prepare_run.s()]
         else:
             runchain = [tasks.check_dsets_ok.s(inputstore),
@@ -167,7 +165,6 @@ def run_workflow(inputstore, gi, existing_spectra=False):
             gi, inputstore['module_uuids'])
         runchain = [tasks.tmp_create_history.s(inputstore),
                     tasks.reuse_history.s(inputstore['rerun_his']),
-                    tasks.tmp_put_files_in_collection.s(),
                     tasks.check_dsets_ok.s(),
                     ]
         runchain.extend(get_modules_and_tasks(inputstore))
