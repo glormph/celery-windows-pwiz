@@ -30,6 +30,8 @@ def parse_commandline(inputstore):
     parser.add_argument('--reuse-history', dest='reuse_history')
     parser.add_argument('-w', dest='analysisnr', type=int)
     parser.add_argument('--sourcehists', dest='sourcehis', nargs='+')
+    parser.add_argument('--sortspectra', dest='sort_specfiles', default=None,
+                        action='store_const', const=True)
     parser.add_argument('--name', dest='searchname')
     parser.add_argument('--files-as-sets', dest='filesassets', default=False,
                         action='store_const', const=True)
@@ -80,7 +82,7 @@ def parse_commandline(inputstore):
         sys.exit(1)
     for param in ['setnames', 'setpatterns', 'multiplextype', 'genefield',
                   'perco_ids', 'ppoolsize', 'fastadelim', 'filesassets',
-                  'strips', 'strippatterns']:
+                  'strips', 'strippatterns', 'sort_specfiles']:
         if getattr(args, param) is not None:
             inputstore['params'][param] = getattr(args, param)
     if args.denominators is not None:

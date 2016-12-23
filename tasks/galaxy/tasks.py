@@ -110,6 +110,8 @@ def tmp_put_files_in_collection(inputstore):
                              gi.histories.show_history(sourcehis,
                                                        contents=True,
                                                        deleted=False)])
+    if 'sort_specfiles' in inputstore['params']:
+        name_id_hdas = sorted(name_id_hdas, key=lambda x: x[0])
     coll_spec = {
         'name': 'spectra', 'collection_type': 'list',
         'element_identifiers': [{'name': name, 'id': g_id, 'src': 'hda'}
