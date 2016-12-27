@@ -42,7 +42,7 @@ def create_spectra_db_pairedlist(inputstore):
     # have both dbs ready, do not want to create decoys for pI separated stuff
     dsets = inputstore['datasets']
     params = inputstore['params']
-    speccol = get_collection_contents(gi, inputstore['history'],
+    speccol = get_collection_contents(gi, dsets['spectra']['history'],
                                       dsets['spectra']['id'])
     setpatterns, pipatterns = params['setpatterns'], params['strippatternlist']
 
@@ -56,13 +56,13 @@ def create_spectra_db_pairedlist(inputstore):
         for set_id in setpatterns:
             pidbcol[set_id] = {}
             for pipat, stripname in zip(pipatterns, params['strips']):
+                dbname = '{}_{}'.format(td, get_prefracdb_name(set_id, stripname))
                 pidbcol[set_id][pipat] = {
                     # Hardcoded fr matcher for db
                     int(re.sub('.*fr([0-9][0-9]).*', r'\1',
                                x['element_identifier'])): x
                     for x in get_collection_contents(
-                        gi, inputstore['history'], dsets['{}_{}'.format(
-                            td, get_prefracdb_name(set_id, stripname))]['id'])}
+                        gi, dsets[dbname]['history'], dsets[dbname]['id'])}
         # now loop spectra and pair with pi-db
         elements = []
         for set_id in setpatterns:
@@ -94,7 +94,8 @@ def create_spectra_db_pairedlist(inputstore):
             inputstore['history'], {'name': colname,
                                     'collection_type': 'list:paired',
                                     'element_identifiers': elements})
-        dsets[colname] = {'src': 'hdca', 'id': collection['id']}
+        dsets[colname] = {'src': 'hdca', 'id': collection['id'],
+                          'history': inputstore['history']}
     return inputstore
 
 
@@ -118,7 +119,8 @@ def tmp_put_files_in_collection(inputstore):
                                 for name, g_id in name_id_hdas]}
     collection = gi.histories.create_dataset_collection(inputstore['history'],
                                                         coll_spec)
-    inputstore['datasets']['spectra'] = {'src': 'hdca', 'id': collection['id']}
+    inputstore['datasets']['spectra'] = {'src': 'hdca', 'id': collection['id'],
+                                         'history': inputstore['history']}
     return inputstore
 
 
@@ -168,15 +170,18 @@ def run_metafiles2pin(self, inputstore):
         tool_inputs[param_name] = pp_id
     td_meta = {}
     for td in ['target', 'decoy']:
-        tool_inputs['searchresult'] = inputstore['datasets'][
-            'msgf {}'.format(td)]
+        tool_inputs['searchresult'] = {
+            k: v for k, v in 
+            inputstore['datasets']['msgf {}'.format(td)].items()
+            if k != 'history'}
         td_meta[td] = gi.tools.run_tool(
             inputstore['history'], 'metafiles2pin_ts',
             tool_inputs=tool_inputs)['output_collections'][0]['id']
     for td in ['target', 'decoy']:
         wait_for_dynamic_collection('metafiles2pin', gi, inputstore,
                                     td_meta[td])
-        inputstore['datasets']['percometa {}'.format(td)]['id'] = td_meta[td]
+        inputstore['datasets']['percometa {}'.format(td)].update({
+            'history': inputstore['history'], 'id': td_meta[td]})
     return inputstore
 
 
@@ -198,10 +203,10 @@ def merge_percobatches_to_sets(self, inputstore):
                                    inputstore['history'],
                                    'merge percolator task')
     perco_t_col = gi.histories.show_dataset_collection(
-        inputstore['history'],
+        inputstore['datasets']['perco batch target']['history'],
         inputstore['datasets']['perco batch target']['id'])
     perco_d_col = gi.histories.show_dataset_collection(
-        inputstore['history'],
+        inputstore['datasets']['perco batch decoy']['history'],
         inputstore['datasets']['perco batch decoy']['id'])
     # Merge target and decoy separately
     for tdname, percotd in zip(['percolator pretarget', 'percolator predecoy'],
@@ -230,7 +235,8 @@ def merge_percobatches_to_sets(self, inputstore):
                         'element_identifiers': merged}
         mergecol = gi.histories.create_dataset_collection(
             inputstore['history'], mergecoldesc)
-        inputstore['datasets'][tdname] = {'src': 'hdca', 'id': mergecol['id']}
+        inputstore['datasets'][tdname] = {'src': 'hdca', 'id': mergecol['id'],
+                                          'history': inputstore['history']}
     return inputstore
 
 
@@ -241,7 +247,8 @@ def get_collection_contents(gi, history, collection_id):
 
 def get_spectrafiles(gi, inputstore):
     spectra_col = get_collection_contents(
-        gi, inputstore['history'], inputstore['datasets']['spectra']['id'])
+        gi, inputstore['datasets']['spectra']['history'], 
+        inputstore['datasets']['spectra']['id'])
     specfiles = [x['element_identifier'] for x in spectra_col]
     return specfiles
 
@@ -263,10 +270,10 @@ def run_pout2mzid_on_sets(self, inputstore):
     prepoutcols = {'target': [], 'decoy': []}
     for td, perco_col in zip(['target', 'decoy'], percocols):
         allmzidfiles = [x for x in get_collection_contents(
-            gi, inputstore['history'],
+            gi, inputstore['datasets']['msgf {}'.format(td)]['history'],
             inputstore['datasets']['msgf {}'.format(td)]['id'])]
         allpercofiles = [x for x in get_collection_contents(
-            gi, inputstore['history'], perco_col['id'])]
+            gi, perco_col['history'], perco_col['id'])]
         for count, (percout, ppool_index) in enumerate(zip(allpercofiles,
                                                            specfileppools)):
             mzids = [allmzidfiles[ix] for ix in ppool_index]
@@ -302,7 +309,9 @@ def run_pout2mzid_on_sets(self, inputstore):
             inputstore['history'], {'name': poutcolname,
                                     'collection_type': 'list',
                                     'element_identifiers': poutcol_els})
-        inputstore['datasets'][poutcolname]['id'] = poutcol['id']
+        inputstore['datasets'][poutcolname].update({'id': poutcol['id'],
+                                                    'history':
+                                                    inputstore['history']})
     return inputstore
 
 
@@ -381,7 +390,8 @@ def create_6rf_split_dbs(inputstore):
                                    inputstore['history'],
                                    'prep predpi peptable')
     peptable_col = gi.histories.show_dataset_collection(
-        inputstore['history'], dsets['peptable MS1 deltapi']['id'])
+        dsets['peptable MS1 deltapi']['history'], 
+        dsets['peptable MS1 deltapi']['id'])
     peptable_ds = {x['element_identifier']: x['object']['id']
                    for x in peptable_col['elements']}
     # run grep tool on fn range column with --pipatterns
@@ -677,6 +687,7 @@ def update_inputstore_from_history(gi, datasets, dsetnames, history_id,
             name = dset['name']
             if name in dsetnames and datasets[name]['id'] is None:
                 print('found dset {}'.format(name))
+                datasets[name]['history'] = history_id
                 if datasets[name]['src'] == 'hdca':
                     datasets[name]['id'] = get_collection_id_in_his(
                         his_contents, name, dset['id'], gi, index)
@@ -816,8 +827,9 @@ def run_mslookup_spectra(gi, inputstore):
     """Runs mslookup spectra. Not in normal WF
     because needs repeat param setnames passed to them, not yet possible
     to call on WF API"""
-    spectra = {'src': 'hdca', 'id': inputstore['datasets']['spectra']['id']}
-    set_inputs = {'spectra': spectra}
+    gi = get_galaxy_instance(inputstore) 
+    set_inputs = {'spectra': {'src': 'hdca',
+                              'id': inputstore['datasets']['spectra']['id']}}
     for count, (set_id, set_name) in enumerate(
             zip(inputstore['params']['setpatterns'],
                 inputstore['params']['setnames'])):
@@ -829,6 +841,9 @@ def run_mslookup_spectra(gi, inputstore):
                                    tool_inputs=set_inputs)['outputs'][0]
     gi.histories.update_dataset(speclookup['history_id'], speclookup['id'],
                                 name='spectra lookup')
+    inputstore['datasets']['spectra lookup'] = {
+        'src': 'hda', 'id': speclookup['id'], 'history': inputstore['history']}
+    return inputstore
 
 
 def get_flatfile_names_inputstore():
