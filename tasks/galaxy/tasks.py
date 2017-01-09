@@ -823,7 +823,7 @@ def prepare_run(self, inputstore, is_workflow=True):
 
 
 @app.task(queue=config.QUEUE_GALAXY_WORKFLOW, bind=True)
-def run_mslookup_spectra(gi, inputstore):
+def run_mslookup_spectra(self, inputstore):
     """Runs mslookup spectra. Not in normal WF
     because needs repeat param setnames passed to them, not yet possible
     to call on WF API"""
