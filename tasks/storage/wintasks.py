@@ -31,7 +31,8 @@ def tmp_convert_to_mzml(self, inputstore):
     else:
         subprocess_flags = 0
     remote_file = os.path.join(inputstore['winshare'],
-                               inputstore['current_storage_dir'], rawfile)
+                               inputstore['current_storage_dir'],
+                               inputstore['raw'])
     print('Received conversion command for file {0}'.format(remote_file))
     try:
         infile = copy_infile(remote_file)
