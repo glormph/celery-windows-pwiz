@@ -7,7 +7,7 @@ import ftplib
 
 from tasks import config
 from tasks.galaxy import tasks as galaxytasks
-from tasks.storage import (wintasks, scp, ftp)
+from tasks.storage import (wintasks, scp, ftp, db_updates)
 
 
 def main():
@@ -15,6 +15,7 @@ def main():
                   'storageshare': config.STORAGESHARE,
                   'storage_localpath': config.STORAGE_LOCALPATH,
                   'galaxy_url': config.GALAXY_URL,
+                  'dbfile': config.SQLITE_FILE,
                   }
     parse_commandline(inputstore)
     inputstore['apikey'] = config.USERS[inputstore['user']][1]
@@ -31,10 +32,11 @@ def main():
             inputstore['raw'] = fn
             os.path.join(config.WIN_STORAGESHARE, directory, fn)
             chain(wintasks.tmp_convert_to_mzml.s(inputstore),
-                  scp.tmp_scp_storage.s(),
+                  scp.tmp_scp_storage.s(), db_updates.update_mzml_md5.s(),
                   ftp.ftp_temporary.s(config.FTPSERVER,
                                       config.FTPPORT, ftpuser, ftppass),
-                  galaxytasks.tmp_import_file_to_history.s())()
+                  galaxytasks.tmp_import_file_to_history.s(),
+                  db_updates.update_mzml_galaxy.s())()
     print('Queued FTP/import files to galaxy, '
           'history ID is: {}'.format(inputstore['history']))
 
