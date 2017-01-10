@@ -5,6 +5,8 @@ import shutil
 
 from celeryapp import app
 from tasks import config
+
+# import task to chain
 from tasks.storage import scp
 
 
@@ -16,7 +18,7 @@ OUTBOX = 'X:'
 
 
 @app.task(bind=True, queue=config.QUEUE_CONVERSION)
-def tmp_convert_to_mzml(self, rawfile, inputstore):
+def tmp_convert_to_mzml(self, inputstore):
     if sys.platform.startswith("win"):
         # Don't display the Windows GPF dialog if the invoked program dies.
         # See comp.os.ms-windows.programmer.win32
@@ -42,6 +44,7 @@ def tmp_convert_to_mzml(self, rawfile, inputstore):
               'disk'.format(e, remote_file))
         self.retry(exc=e, countdown=60)
     outfile = os.path.splitext(os.path.basename(infile))[0] + '.mzML'
+    inputstore['mzml'] = outfile
     resultpath = os.path.join(MZMLDUMPS, outfile)
     command = [PROTEOWIZ_LOC, infile, '--filter', '"peakPicking true 2"',
                '--filter', '"precursorRefine"', '-o', MZMLDUMPS]
@@ -64,7 +67,7 @@ def tmp_convert_to_mzml(self, rawfile, inputstore):
         cleanup_files(infile, resultpath)
         self.retry(countdown=60, exc=e)
     cleanup_files(infile, resultpath)
-    return outfile
+    return inputstore
 
 
 def cleanup_files(*files):

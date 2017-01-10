@@ -28,13 +28,13 @@ def main():
         #in_directory = directory  # testing
         rawfiles = get_files_directory(in_directory, 'raw')
         for fn in rawfiles:
-            win_rawfile = os.path.join(config.WIN_STORAGESHARE, directory, fn)
-            chain(wintasks.tmp_convert_to_mzml.s(win_rawfile, inputstore),
-                  scp.tmp_scp_storage.s(inputstore),
+            inputstore['raw'] = fn
+            os.path.join(config.WIN_STORAGESHARE, directory, fn)
+            chain(wintasks.tmp_convert_to_mzml.s(inputstore),
+                  scp.tmp_scp_storage.s(),
                   ftp.ftp_temporary.s(config.FTPSERVER,
-                                      config.FTPPORT, ftpuser, ftppass,
-                                      inputstore['ftpdir']),
-                  galaxytasks.tmp_import_file_to_history.s(inputstore))()
+                                      config.FTPPORT, ftpuser, ftppass),
+                  galaxytasks.tmp_import_file_to_history.s())()
     print('Queued FTP/import files to galaxy, '
           'history ID is: {}'.format(inputstore['history']))
 

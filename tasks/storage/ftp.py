@@ -27,19 +27,19 @@ def ftp_transfer(mzml_id, server, port, ftpaccount, ftppass, ftpdir):
     return os.path.join(ftpdir, dst)
 
 
-@app.task(queue=config.QUEUE_FTP)
-def ftp_temporary(mzmlfile, server, port, ftpaccount, ftppass, ftpdir):
+@app.task(queue=config.QUEUE_FTP, bind=True)
+def ftp_temporary(inputstore, server, port, ftpaccount, ftppass):
     ftpcon = ftplib.FTP()
     ftpcon.connect(server, port)
     ftpcon.login(ftpaccount, ftppass)
     try:
-        ftpcon.mkd(ftpdir)
+        ftpcon.mkd(inputstore['ftpdir'])
     except ftplib.error_perm:
         # dir already exists
         print('ftp upload dir already exists')
-    ftpcon.cwd(ftpdir)
-    dst = os.path.split(mzmlfile)[1]
-    with open(mzmlfile, 'rb') as fp:
-        ftpcon.storbinary('STOR {0}'.format(dst), fp, blocksize=65535)
-    print('done with {}'.format(dst))
-    return os.path.join(ftpdir, dst)
+    ftpcon.cwd(inputstore['ftpdir'])
+    with open(inputstore['mzml_path'], 'rb') as fp:
+        ftpcon.storbinary('STOR {0}'.format(inputstore['mzml']), fp,
+                          blocksize=65535)
+    print('done with {}'.format(inputstore['mzml']))
+    return inputstore

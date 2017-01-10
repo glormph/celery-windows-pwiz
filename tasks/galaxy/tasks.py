@@ -13,15 +13,18 @@ from tasks.galaxy import workflow_manage as wfmanage
 from celeryapp import app
 
 
-@app.task(queue=config.QUEUE_GALAXY_TOOLS)
-def tmp_import_file_to_history(mzmlfile, inputstore):
-    print('Importing {} to galaxy history {}'.format(mzmlfile,
+@app.task(queue=config.QUEUE_GALAXY_TOOLS, bind=True)
+def tmp_import_file_to_history(self, inputstore):
+    print('Importing {} to galaxy history {}'.format(inputstore['mzml'],
                                                      inputstore['history']))
     gi = get_galaxy_instance(inputstore)
-    dset = gi.tools.upload_from_ftp(mzmlfile,
+    dset = gi.tools.upload_from_ftp(os.path.join(inputstore['ftpdir'],
+                                                 inputstore['mzml']),
                                     inputstore['history'])['outputs']
-    print('File {} imported'.format(mzmlfile))
-    return dset[0]['name'], dset[0]['id']
+    print('File {} imported'.format(inputstore['mzml']))
+    inputstore['galaxy_dset'] = dset[0]['id']
+    inputstore['galaxy_name'] = dset[0]['name']
+    return inputstore
 
 
 @app.task(queue=config.QUEUE_GALAXY_TOOLS)
