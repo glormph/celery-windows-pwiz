@@ -449,6 +449,72 @@ def get_prefracdb_name(setname, stripname):
     return '{}::{}'.format(setname, stripname)
 
 
+def get_json_workflow(inputstore):
+    # FIXME
+    return inputstore['wf_json']
+
+
+def mend_workflow_json(wf_json, inputstore):
+    print('Updating set names and connecting loose step (percolator-in)')
+    wf_json = get_json_workflow(inputstore)
+    set_list = [{'__index__': ix, 'pool_identifier': name}
+                for ix, name in enumerate(inputstore['params']['perco_ids'])]
+    percin_input_stepids = set()
+    # Add setnames to repeats
+    for step in wf_json['steps'].values():
+        if step['tool_id'] is not None and 'batched_set' in step['tool_id']:
+            state_dic = json.loads(step['tool_state'])
+            state_dic['pools'] = json.dumps(set_list)
+            step['tool_state'] = json.dumps(state_dic)
+            # also find decoy perco-in batch ID
+            if 'RuntimeValue' in state_dic['batchsize']:
+                percin_input_stepids.add(step['id'])
+    # connect percolator in step
+    for step in wf_json['steps'].values():
+        if (step['tool_id'] is not None and
+                'percolator_input_converters' in step['tool_id']):
+            step_input = step['input_connections']
+            percin_input_stepids.remove(step_input['mzids|target']['id'])
+            step_input['mzids|decoy'] = {
+                'output_name': 'batched_fractions_mzid',
+                'id': percin_input_stepids.pop()}
+    # FIXME repeats in spectra, delta pI, etc
+    return wf_json
+
+
+@app.task(queue=config.QUEUE_GALAXY_WORKFLOW, bind=True)
+def run_search_wf(self, inputstore, module_uuid):
+    print('Getting workflow module {}'.format(module_uuid))
+    gi = get_galaxy_instance(inputstore)
+    module = inputstore['g_modules'][module_uuid]
+    input_labels = get_input_labels(module)
+    wf_json = mend_workflow_json(inputstore)
+    # FIXME module is something else
+    module = gi.workflows.import_workflow_json(wf_json)
+    try:
+        update_inputstore_from_history(gi, inputstore['datasets'],
+                                       input_labels,
+                                       inputstore['history'],
+                                       module['name'])
+    except:
+        self.retry(countdown=60)
+    mod_inputs = get_input_map(module, inputstore['datasets'])
+    mod_params = get_param_map(module, inputstore)
+    print('Invoking workflow {} with id {}'.format(module['name'],
+                                                   module['id']))
+    try:
+        gi.workflows.invoke_workflow(module['id'], inputs=mod_inputs,
+                                     params=mod_params,
+                                     history_id=inputstore['history'])
+    except Exception as e:
+        # Workflows are invoked so requests are fast, no significant
+        # risk for timeouts
+        print('Problem, retrying, error was {}'.format(e))
+        self.retry(countdown=60, exc=e)
+    print('Workflow invoked')
+    return inputstore
+
+
 @app.task(queue=config.QUEUE_GALAXY_WORKFLOW, bind=True)
 def run_workflow_module(self, inputstore, module_uuid):
     print('Getting workflow module {}'.format(module_uuid))
