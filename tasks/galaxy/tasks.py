@@ -456,19 +456,42 @@ def get_json_workflow(inputstore):
 
 def mend_workflow_json(wf_json, inputstore):
     print('Updating set names and connecting loose step (percolator-in)')
-    wf_json = get_json_workflow(inputstore)
-    set_list = [{'__index__': ix, 'pool_identifier': name}
-                for ix, name in enumerate(inputstore['params']['perco_ids'])]
+    #wf_json = get_json_workflow(inputstore)
+    params = inputstore['params']
+    strip_list = json.dumps([{'__index__': ix, 'intercept': strip['intercept'],
+                              'fr_width': strip['fr_width'],
+                              'pattern': strippat} for ix, (strip, strippat) in
+                             enumerate(zip(params['strips'],
+                                           params['strippatterns']))])
+    ppool_list = json.dumps([{'__index__': ix, 'pool_identifier': name}
+                             for ix, name in enumerate(params['perco_ids'])])
+    set_list = json.dumps([{'__index__': ix, 'pool_identifier': name}
+                           for ix, name in enumerate(params['setpatterns'])])
+    lookup_list = json.dumps([{'__index__': ix, 'set_identifier': setid,
+                               'set_name': setname} for ix, (setid, setname) in
+                              enumerate(zip(params['setpatterns'],
+                                            params['setnames']))])
     percin_input_stepids = set()
-    # Add setnames to repeats
+    # Add setnames to repeats, pi strips to delta-pi-calc
     for step in wf_json['steps'].values():
-        if step['tool_id'] is not None and 'batched_set' in step['tool_id']:
-            state_dic = json.loads(step['tool_state'])
-            state_dic['pools'] = json.dumps(set_list)
-            step['tool_state'] = json.dumps(state_dic)
-            # also find decoy perco-in batch ID
+        state_dic = json.loads(step['tool_state'])
+        if step['tool_id'] is None:
+            continue
+        elif 'batched_set' in step['tool_id']:
             if 'RuntimeValue' in state_dic['batchsize']:
+                # also find decoy perco-in batch ID
                 percin_input_stepids.add(step['id'])
+                state_dic['poolids'] = ppool_list
+            else:
+                state_dic['poolids'] = set_list
+            step['tool_state'] = json.dumps(state_dic)
+        elif 'msslookup_spectra' in step['tool_id']:
+            state_dic['pools'] = lookup_list
+            step['tool_state'] = json.dumps(state_dic)
+        elif 'calc_delta_pi' in step['tool_id']:
+            state_dic['strips'] = strip_list
+            step['tool_state'] = json.dumps(state_dic)
+
     # connect percolator in step
     for step in wf_json['steps'].values():
         if (step['tool_id'] is not None and
