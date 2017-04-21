@@ -152,11 +152,6 @@ def put_files_in_collection(dsets, inputstore):
     return inputstore
 
 
-def get_searchname(inputstore):
-    return '{}_{}'.format(inputstore['base_searchname'],
-                          inputstore['searchtype'])
-
-
 @app.task(queue=config.QUEUE_GALAXY_WORKFLOW, bind=True)
 def run_metafiles2pin(self, inputstore):
     """Metafile2pin contains a repeat param which cannot be accessed
@@ -452,57 +447,6 @@ def get_prefracdb_name(setname, stripname):
 def get_json_workflow(inputstore):
     # FIXME
     return inputstore['wf_json']
-
-
-def mend_workflow_json(wf_json, inputstore):
-    print('Updating set names and connecting loose step (percolator-in)')
-    #wf_json = get_json_workflow(inputstore)
-    params = inputstore['params']
-    strip_list = json.dumps([{'__index__': ix, 'intercept': strip['intercept'],
-                              'fr_width': strip['fr_width'],
-                              'pattern': strippat} for ix, (strip, strippat) in
-                             enumerate(zip(params['strips'],
-                                           params['strippatterns']))])
-    ppool_list = json.dumps([{'__index__': ix, 'pool_identifier': name}
-                             for ix, name in enumerate(params['perco_ids'])])
-    set_list = json.dumps([{'__index__': ix, 'pool_identifier': name}
-                           for ix, name in enumerate(params['setpatterns'])])
-    lookup_list = json.dumps([{'__index__': ix, 'set_identifier': setid,
-                               'set_name': setname} for ix, (setid, setname) in
-                              enumerate(zip(params['setpatterns'],
-                                            params['setnames']))])
-    percin_input_stepids = set()
-    # Add setnames to repeats, pi strips to delta-pi-calc
-    for step in wf_json['steps'].values():
-        state_dic = json.loads(step['tool_state'])
-        if step['tool_id'] is None:
-            continue
-        elif 'batched_set' in step['tool_id']:
-            if 'RuntimeValue' in state_dic['batchsize']:
-                # also find decoy perco-in batch ID
-                percin_input_stepids.add(step['id'])
-                state_dic['poolids'] = ppool_list
-            else:
-                state_dic['poolids'] = set_list
-            step['tool_state'] = json.dumps(state_dic)
-        elif 'msslookup_spectra' in step['tool_id']:
-            state_dic['pools'] = lookup_list
-            step['tool_state'] = json.dumps(state_dic)
-        elif 'calc_delta_pi' in step['tool_id']:
-            state_dic['strips'] = strip_list
-            step['tool_state'] = json.dumps(state_dic)
-
-    # connect percolator in step
-    for step in wf_json['steps'].values():
-        if (step['tool_id'] is not None and
-                'percolator_input_converters' in step['tool_id']):
-            step_input = step['input_connections']
-            percin_input_stepids.remove(step_input['mzids|target']['id'])
-            step_input['mzids|decoy'] = {
-                'output_name': 'batched_fractions_mzid',
-                'id': percin_input_stepids.pop()}
-    # FIXME repeats in spectra, delta pI, etc
-    return wf_json
 
 
 @app.task(queue=config.QUEUE_GALAXY_WORKFLOW, bind=True)

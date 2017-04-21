@@ -1,62 +1,52 @@
 import sys
+import json
 from celery import chain
 
 from tasks.galaxy import galaxydata
+from tasks.galaxy import json_workflows
 from tasks.galaxy import tasks
 from tasks.galaxy import workflow_manage as wfmanage
 from tasks.galaxy import util
 from tasks.galaxy import nonwf_tasks
-from tasks import config
 
 
-def prep_workflow(parsefun, parsespecial):
-    inputstore = {'params': {},
-                  'galaxy_url': config.GALAXY_URL,
-                  }
-    inputstore['datasets'] = wfmanage.initialize_datasets()
-    parsefun(inputstore)
+def prep_inputs(inputstore, parsespecial):
+    # FIXME this is a new method, untested
+    """Input checking. In UI we just demand inputs on the spot by reading
+    from the wf. Then we need to also specify the optional ones, but this
+    can be a start"""
     gi = util.get_galaxy_instance(inputstore)
     parsespecial(inputstore, gi)
-    if inputstore['run'] == 'show':
-        wfmanage.check_all_modules(inputstore)
-        sys.exit()
-    if inputstore['run'] == 'connectivity':
-        check_workflow_mod_connectivity(galaxydata.workflows, inputstore,
-                                        dry_run=True)
-        sys.exit()
-    else:
-        inputstore['wf'] = wfmanage.get_workflows()[inputstore['wf_num']]
-        # Input checking. In UI we just demand inputs on the spot by reading
-        # from the wf. Then we need to also specify the optional ones, but this
-        # can be a start
-        input_error = False
-        # Library inputs are not checked because they are asked for
-        for in_dset in inputstore['datasets']:
-            if in_dset not in inputstore['wf']['required_dsets']:
-                continue
-            elif in_dset in wfmanage.get_other_names_inputstore():
-                checkval = inputstore['datasets'][in_dset]
-            else:
-                checkval = inputstore['datasets'][in_dset]['id']
-            if checkval is None:
-                print('Dataset or parameter {} not specified. '
-                      'Exiting.'.format(in_dset))
-                input_error = True
-        for in_param in inputstore['wf']['required_params']:
-            if (in_param not in inputstore['params'] or
-                    inputstore['params'][in_param] is None):
-                print('Required parameter {} not specified. '
-                      'Exiting.'.format(in_param))
-                input_error = True
-        if input_error:
-            sys.exit(1)
-        print('All data locally defined as required has been passed')
-        libdsets = wfmanage.get_library_dsets(gi, inputstore['wf']['lib_inputs'])
-        inputstore['datasets'].update(libdsets)
-        print(inputstore['params'])
-        if not check_workflow_mod_connectivity([inputstore['wf']], inputstore):
-            sys.exit(1)
-        print('Using datasets from library:', libdsets)
+    input_error = False
+    # Library inputs are not checked because they are asked for
+    for in_dset in inputstore['datasets']:
+        if in_dset not in inputstore['wf']['required_dsets']:
+            continue
+        elif in_dset in wfmanage.get_other_names_inputstore():
+            checkval = inputstore['datasets'][in_dset]
+        else:
+            checkval = inputstore['datasets'][in_dset]['id']
+        if checkval is None:
+            print('Dataset or parameter {} not specified. '
+                  'Exiting.'.format(in_dset))
+            input_error = True
+    for in_param in inputstore['wf']['required_params']:
+        if (in_param not in inputstore['params'] or
+                inputstore['params'][in_param] is None):
+            print('Required parameter {} not specified. '
+                  'Exiting.'.format(in_param))
+            input_error = True
+    if input_error:
+        return False
+    print('All data locally defined as required has been passed')
+    return inputstore
+
+
+def prep_libdsets(inputstore):
+    gi = util.get_galaxy_instance(inputstore)
+    libdsets = wfmanage.get_library_dsets(gi, inputstore['wf']['lib_inputs'])
+    inputstore['datasets'].update(libdsets)
+    print('Using datasets from library:', libdsets)
     return inputstore, gi
 
 
@@ -138,10 +128,158 @@ def check_workflow_mod_connectivity(workflows, inputstore, dry_run=False):
     return connect_ok
 
 
+def get_searchname(inputstore):
+    return '{}_{}'.format(inputstore['base_searchname'],
+                          inputstore['searchtype'])
+
+
+def add_repeats_to_workflow_json(inputstore, wf_json):
+    """Takes as input wf_json the thing the output from
+    gi.workflows.export_workflow_json"""
+    print('Updating set names and connecting loose step (percolator-in)')
+    params = inputstore['params']
+    strip_list = json.dumps([{'__index__': ix, 'intercept': strip['intercept'],
+                              'fr_width': strip['fr_width'],
+                              'pattern': strippat} for ix, (strip, strippat) in
+                             enumerate(zip(params['strips'],
+                                           params['strippatterns']))])
+    ppool_list = json.dumps([{'__index__': ix, 'pool_identifier': name}
+                             for ix, name in enumerate(params['perco_ids'])])
+    set_list = json.dumps([{'__index__': ix, 'pool_identifier': name}
+                           for ix, name in enumerate(params['setpatterns'])])
+    lookup_list = json.dumps([{'__index__': ix, 'set_identifier': setid,
+                               'set_name': setname} for ix, (setid, setname) in
+                              enumerate(zip(params['setpatterns'],
+                                            params['setnames']))])
+    percin_input_stepids = set()
+    # Add setnames to repeats, pi strips to delta-pi-calc
+    for step in wf_json['steps'].values():
+        state_dic = json.loads(step['tool_state'])
+        if step['tool_id'] is None:
+            continue
+        elif 'batched_set' in step['tool_id']:
+            if 'RuntimeValue' in state_dic['batchsize']:
+                # also find decoy perco-in batch ID
+                percin_input_stepids.add(step['id'])
+                state_dic['poolids'] = ppool_list
+            else:
+                state_dic['poolids'] = set_list
+            step['tool_state'] = json.dumps(state_dic)
+        elif 'msslookup_spectra' in step['tool_id']:
+            state_dic['pools'] = lookup_list
+            step['tool_state'] = json.dumps(state_dic)
+        elif 'calc_delta_pi' in step['tool_id']:
+            state_dic['strips'] = strip_list
+            step['tool_state'] = json.dumps(state_dic)
+        #FIXME elif not ENSMEBL, remove biomart input from PSM table creations
+    return connect_percolator_in_steps(wf_json, percin_input_stepids)
+
+
+def connect_percolator_in_steps(wf_json, percin_input_stepids):
+    # connect percolator in step
+    for step in wf_json['steps'].values():
+        if (step['tool_id'] is not None and
+                'percolator_input_converters' in step['tool_id']):
+            step_input = step['input_connections']
+            percin_input_stepids.remove(step_input['mzids|target']['id'])
+            step_input['mzids|decoy'] = {
+                'output_name': 'batched_fractions_mzid',
+                'id': percin_input_stepids.pop()}
+    return wf_json
+
+
+def get_versioned_module(modname, version):
+    # FIXME db call to get a version of the modname
+    return json_workflows[modname]
+
+
+def fill_runtime_params(step, params):
+    """Should return step tool_id, name, composed_name"""
+    tool_param_inputs = json.loads(step['tool_state'])
+    annot = step['annotation']
+    stepname = annot[:annot.index('---')] if annot else step['name']
+    for input_name, input_val in tool_param_inputs.items():
+        try:
+            input_val = json.loads(input_val)
+        except (TypeError, ValueError):
+            # no json obj, no runtime values
+            continue
+        if type(input_val) == dict:
+            # Only runtime vals or conditionals are dict, simple values
+            # are just strings
+            if dict in [type(x) for x in input_val.values()]:
+                # complex input dict from e.g. conditional which contains
+                # a dict possibly containing runtime value
+                # TODO make this recursive maybe for nested conditionals
+                pass
+                for subname, subval in input_val.items():
+                    composed_name = '{}|{}'.format(input_name, subname)
+                    if is_runtime_param(subval, composed_name, step):
+                        input_val[subname] = params[stepname][composed_name]
+                tool_param_inputs[input_name] = json.dumps(input_val)
+            else:
+                if is_runtime_param(input_val, input_name, step):
+                    tool_param_inputs[input_name] = json.dumps(
+                        params[stepname][input_name])
+    step['tool_state'] = json.dumps(tool_param_inputs)
+
+
+def is_runtime_param(val, name, step):
+    try:
+        isruntime = val['__class__'] == 'RuntimeValue'
+    except (KeyError, TypeError):
+        return False
+    else:
+        if isruntime and name not in step['input_connections']:
+            return True
+        return False
+
+
+def new_run_workflow(inputstore, gi):
+    """Passed a workflow in inputstore, this function will create a runchain
+    of tasks for celery. Will either use the existing celery task or fetch
+    workflow JSON, mend and fill it and create a celery task for it.
+    It then queues tasks to celery"""
+    # FIXME if quant lookup exists, do not use specquant wf
+    #inputstore = wfmanage.new_transfer_workflow_modules(inputstore)
+    # wf passed is {'version': x, 'mods': [(name, uuid), (name, uuid)]
+    inputstore['searchtype'] = inputstore['wf']['searchtype']
+    inputstore['searchname'] = get_searchname(inputstore)
+    runchain = [tasks.tmp_create_history.s(inputstore),
+                tasks.check_dsets_ok.s()]
+    inputstore['wf']['uploaded'] = {}
+    for modname, version in inputstore['wf']['modules']:
+        if modname[0] == '@':
+            runchain.append(nonwf_tasks.tasks[modname]['task'].s())
+        else:
+            raw_json = get_versioned_module(modname, version)
+            wf_json = add_repeats_to_workflow_json(inputstore, raw_json)
+            for step in wf_json['steps'].values():
+                fill_runtime_params(step, inputstore['params'])
+            uploaded = gi.workflows.import_workflow_json(wf_json)
+            inputstore['wf']['uploaded'][modname] = uploaded['id']
+            runchain.append(tasks.run_workflow_module.s(uploaded['id']))
+    runchain.extend(tasks.get_download_task_chain())
+    res = chain(*runchain)
+    res.delay()
+
+
 def run_workflow(inputstore, gi, existing_spectra=False):
     """Runs a wf as specified in inputstore var"""
+    # ###### NEW PLAN
+    # get wfjsons from VC place so you can pick a version
+    # mend repeats and connections
+    # fill in runtime params
+    # upload
+    # run it
+    #
+    # 6RF has some extras, need to create a DB in advance
+    # cannot easily be run as ONE wf, so use the old strategy of connecting
+    # but still do wf uploads first
+    #
+    ########
     inputstore['searchtype'] = inputstore['wf']['searchtype']
-    inputstore['searchname'] = tasks.get_searchname(inputstore)
+    inputstore['searchname'] = get_searchname(inputstore)
     if (inputstore['run'] == 1 and inputstore['rerun_his'] is None):
         # runs a single workflow composed of some modules
         inputstore['module_uuids'] = wfmanage.get_modules_for_workflow(
