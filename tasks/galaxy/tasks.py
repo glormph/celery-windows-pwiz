@@ -450,28 +450,23 @@ def get_json_workflow(inputstore):
 
 
 @app.task(queue=config.QUEUE_GALAXY_WORKFLOW, bind=True)
-def run_search_wf(self, inputstore, module_uuid):
-    print('Getting workflow module {}'.format(module_uuid))
+def run_search_wf(self, inputstore, wf_id):
+    print('Workflow start task: Preparing inputs for workflow '
+          'module {}'.format(wf_id))
     gi = get_galaxy_instance(inputstore)
-    module = inputstore['g_modules'][module_uuid]
-    input_labels = get_input_labels(module)
-    wf_json = mend_workflow_json(inputstore)
-    # FIXME module is something else
-    module = gi.workflows.import_workflow_json(wf_json)
+    wf_json = inputstore['wf']['uploaded'][wf_id]
+    input_labels = get_input_labels_json(wf_json)
     try:
         update_inputstore_from_history(gi, inputstore['datasets'],
                                        input_labels,
                                        inputstore['history'],
-                                       module['name'])
+                                       wf_json['name'])
     except:
         self.retry(countdown=60)
-    mod_inputs = get_input_map(module, inputstore['datasets'])
-    mod_params = get_param_map(module, inputstore)
-    print('Invoking workflow {} with id {}'.format(module['name'],
-                                                   module['id']))
+    mod_inputs = get_input_map_from_json(wf_json, inputstore['datasets'])
+    print('Invoking workflow {} with id {}'.format(wf_json['name'], wf_id))
     try:
-        gi.workflows.invoke_workflow(module['id'], inputs=mod_inputs,
-                                     params=mod_params,
+        gi.workflows.invoke_workflow(wf_id, inputs=mod_inputs,
                                      history_id=inputstore['history'])
     except Exception as e:
         # Workflows are invoked so requests are fast, no significant
@@ -731,6 +726,19 @@ def update_inputstore_from_history(gi, datasets, dsetnames, history_id,
                     datasets[name]['id'] = dset['id']
         sleep(10)
 
+
+def get_input_labels_json(wf):
+    return [x[0] for x in wfmanage.get_workflow_inputs_json(wf)]
+
+
+def get_input_map_from_json(module, inputstore):
+    inputmap = {}
+    for label, uuid in wfmanage.get_workflow_inputs_json(module):
+        inputmap[uuid] = {
+            'id': inputstore[label]['id'],
+            'src': inputstore[label]['src'],
+        }
+    return inputmap
 
 def get_input_map(module, inputstore):
     inputmap = {}

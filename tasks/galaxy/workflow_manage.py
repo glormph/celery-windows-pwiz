@@ -210,6 +210,14 @@ def get_workflow_params(wf_json):
                                'name': input_name, 'storename': False}
 
 
+def get_workflow_inputs_json(wfjson):
+    """From workflow JSON returns (name, uuid) of the input steps"""
+    for step in wfjson['steps'].values():
+        if (step['tool_id'] is None and step['name'] in
+                ['Input dataset', 'Input dataset collection']):
+            yield(json.loads(step['tool_state'])['name'], step['uuid'])
+
+
 def get_workflow_inputs(wfmod):
     for modinput in wfmod['inputs'].values():
         yield (modinput['label'], modinput['uuid'])
