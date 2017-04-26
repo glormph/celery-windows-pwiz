@@ -224,6 +224,61 @@ def fill_runtime_params(step, params):
     step['tool_state'] = json.dumps(tool_param_inputs)
 
 
+def connect_specquant_workflow(spec_wf_json, search_wf_json):
+    step_tool_states = {step['id']: json.loads(step['tool_state'])
+                        for step in search_wf_json['steps'].values()}
+    spec_step_id = [step_id for step_id, ts in step_tool_states.items()
+                    if 'name' in ts and ts['name'] == 'spectra'][0]
+    amount_spec_steps = len([step for step in spec_wf_json['steps'].values()
+                             if step['tool_id'] is not None])
+    # first remove quant lookup input
+    qlookup_step_id = [step_id for step_id, ts in step_tool_states.items()
+                       if 'name' in ts and ts['name'] == 'quant lookup'][0]
+    del(search_wf_json['steps'][str(qlookup_step_id)])
+
+    # to make space for spec quant, change ID on all steps, and all connections
+    # compensate also for the removal of the quant lookup input step
+    first_tool_stepnr = min([x['id'] for x in search_wf_json['steps'].values()
+                             if x['tool_id'] is not None])
+    newsteps = {}
+    for step in search_wf_json['steps'].values():
+        if step['id'] >= first_tool_stepnr:
+            # -1 for removal of quant lookup input
+            step['id'] = step['id'] + amount_spec_steps - 1
+            for connection in step['input_connections'].values():
+                if connection['id'] >= first_tool_stepnr:
+                    connection['id'] = connection['id'] + amount_spec_steps - 1
+                elif qlookup_step_id < connection['id'] < first_tool_stepnr:
+                    connection['id'] = connection['id'] - 1
+        elif qlookup_step_id < step['id'] < first_tool_stepnr:
+            step['id'] = step['id'] - 1
+        newsteps[str(step['id'])] = step
+    # Subtract 1 because we have removed an input step (quant lookup)
+    spec_step_id -= 1
+    first_tool_stepnr -= 1
+    search_wf_json['steps'] = newsteps
+    # Add spectra/quant steps, connect to spectra collection input
+    for step in spec_wf_json['steps'].values():
+        if step['tool_id'] is None:
+            continue
+        step['id'] = step['id'] - 1 + first_tool_stepnr
+        for connection in step['input_connections'].values():
+            connection['id'] = connection['id'] - 1 + first_tool_stepnr
+        if 'spectra' in step['input_connections']:
+            step['input_connections']['spectra']['id'] = spec_step_id
+        elif 'ms1_in' in step['input_connections']:
+            step['input_connections']['ms1_in']['id'] = spec_step_id
+        elif 'param_in' in step['input_connections']:
+            step['input_connections']['param_in']['id'] = spec_step_id
+        search_wf_json['steps'][str(step['id'])] = step
+        if step['name'] == 'Create lookup table with quant data':
+            lookupstep = step
+    # Connect to PSM table
+    for step in search_wf_json['steps'].values():
+        if step['name'] == 'Process PSM table':
+            step['input_connections']['lookup']['id'] = lookupstep['id']
+
+
 def is_runtime_param(val, name, step):
     try:
         isruntime = val['__class__'] == 'RuntimeValue'
