@@ -1,6 +1,7 @@
 import sys
 import json
 from celery import chain
+from datetime import datetime
 
 from tasks.galaxy import galaxydata
 from tasks.galaxy import json_workflows
@@ -224,39 +225,44 @@ def fill_runtime_params(step, params):
     step['tool_state'] = json.dumps(tool_param_inputs)
 
 
+def get_spectraquant_wf(inputstore):
+    if 'IsobaricAnalyzer' in inputstore['params']:
+        wf_fn = 'json_workflows/spectra_quant_isobaric.json'
+    else:
+        wf_fn = 'json_workflows/spectra_quant_labelfree.json'
+    with open(wf_fn) as fp:
+        return json.load(fp)
+
+
 def connect_specquant_workflow(spec_wf_json, search_wf_json):
+    print('Connecting spectra quant workflow to search workflow')
     step_tool_states = {step['id']: json.loads(step['tool_state'])
                         for step in search_wf_json['steps'].values()}
-    spec_step_id = [step_id for step_id, ts in step_tool_states.items()
-                    if 'name' in ts and ts['name'] == 'spectra'][0]
-    amount_spec_steps = len([step for step in spec_wf_json['steps'].values()
-                             if step['tool_id'] is not None])
     # first remove quant lookup input
     qlookup_step_id = [step_id for step_id, ts in step_tool_states.items()
                        if 'name' in ts and ts['name'] == 'quant lookup'][0]
-    del(search_wf_json['steps'][str(qlookup_step_id)])
-
+    remove_step_from_wf(qlookup_step_id, search_wf_json)
     # to make space for spec quant, change ID on all steps, and all connections
-    # compensate also for the removal of the quant lookup input step
     first_tool_stepnr = min([x['id'] for x in search_wf_json['steps'].values()
                              if x['tool_id'] is not None])
+    if first_tool_stepnr > qlookup_step_id:
+        first_tool_stepnr -= 1
+    amount_spec_steps = len([step for step in spec_wf_json['steps'].values()
+                             if step['tool_id'] is not None])
     newsteps = {}
     for step in search_wf_json['steps'].values():
         if step['id'] >= first_tool_stepnr:
-            # -1 for removal of quant lookup input
-            step['id'] = step['id'] + amount_spec_steps - 1
+            step['id'] = step['id'] + amount_spec_steps
             for connection in step['input_connections'].values():
                 if connection['id'] >= first_tool_stepnr:
-                    connection['id'] = connection['id'] + amount_spec_steps - 1
-                elif qlookup_step_id < connection['id'] < first_tool_stepnr:
-                    connection['id'] = connection['id'] - 1
-        elif qlookup_step_id < step['id'] < first_tool_stepnr:
-            step['id'] = step['id'] - 1
+                    connection['id'] = connection['id'] + amount_spec_steps
         newsteps[str(step['id'])] = step
-    # Subtract 1 because we have removed an input step (quant lookup)
-    spec_step_id -= 1
-    first_tool_stepnr -= 1
     search_wf_json['steps'] = newsteps
+    # Subtract 1 because we have removed an input step (quant lookup)
+    spec_step_id = [step_id for step_id, ts in step_tool_states.items()
+                    if 'name' in ts and ts['name'] == 'spectra'][0]
+    if spec_step_id > qlookup_step_id:
+        spec_step_id -= 1
     # Add spectra/quant steps, connect to spectra collection input
     for step in spec_wf_json['steps'].values():
         if step['tool_id'] is None:
@@ -277,6 +283,19 @@ def connect_specquant_workflow(spec_wf_json, search_wf_json):
     for step in search_wf_json['steps'].values():
         if step['name'] == 'Process PSM table':
             step['input_connections']['lookup']['id'] = lookupstep['id']
+
+
+def remove_step_from_wf(removestep_id, wf_json):
+    del(wf_json['steps'][str(removestep_id)])
+    newsteps = {}
+    for step in wf_json['steps'].values():
+        if step['id'] > removestep_id:
+            step['id'] -= 1
+        for connection in step['input_connections'].values():
+            if connection['id'] > removestep_id:
+                connection['id'] -= 1
+        newsteps[str(step['id'])] = step
+    wf_json['steps'] = newsteps
 
 
 def is_runtime_param(val, name, step):
@@ -303,11 +322,16 @@ def new_run_workflow(inputstore, gi):
     runchain = [tasks.tmp_create_history.s(inputstore),
                 tasks.check_dsets_ok.s()]
     inputstore['wf']['uploaded'] = {}
-    for modname, version in inputstore['wf']['modules']:
-        if modname[0] == '@':
-            runchain.append(nonwf_tasks.tasks[modname]['task'].s())
+    for module in inputstore['wf']['modules']:
+        if module[0][0] == '@':
+            runchain.append(nonwf_tasks.tasks[module[0]]['task'].s())
         else:
+            modname, version, modtype = module[0], module[1], module[2]
             raw_json = get_versioned_module(modname, version)
+            if (modtype == 'search' and
+                    inputstore['datasets']['quant lookup']['id'] is None):
+                specquant_wfjson = get_spectraquant_wf(inputstore)
+                connect_specquant_workflow(specquant_wfjson, raw_json)
             wf_json = add_repeats_to_workflow_json(inputstore, raw_json)
             for step in wf_json['steps'].values():
                 fill_runtime_params(step, inputstore['params'])
