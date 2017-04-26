@@ -172,7 +172,6 @@ def add_repeats_to_workflow_json(inputstore, wf_json):
         elif 'calc_delta_pi' in step['tool_id']:
             state_dic['strips'] = strip_list
             step['tool_state'] = json.dumps(state_dic)
-        #FIXME elif not ENSMEBL, remove biomart input from PSM table creations
     return connect_percolator_in_steps(wf_json, percin_input_stepids)
 
 
@@ -285,6 +284,33 @@ def connect_specquant_workflow(spec_wf_json, search_wf_json):
             step['input_connections']['lookup']['id'] = lookupstep['id']
 
 
+def remove_ensembl_steps(wf_json):
+    print('Removing ENSEMBL steps and inputs from workflow')
+    # remove biomart from PSM table input connections
+    for step in wf_json['steps'].values():
+        if step['name'] == 'Process PSM table':
+            del(step['input_connections']['mapfn'])
+            step['inputs'] = [x for x in step['inputs']
+                              if x['name'] != 'mapfn']
+    # remove biomart input, update all IDs that come from there
+    step_tool_states = {step['id']: json.loads(step['tool_state'])
+                        for step in wf_json['steps'].values()}
+    mart_step_id = [step_id for step_id, ts in step_tool_states.items()
+                    if 'name' in ts and ts['name'] == 'biomart map'][0]
+    remove_step_from_wf(mart_step_id, wf_json)
+    # remove all boxes which say symbol_table in annotation
+    symbol_table = True
+    while symbol_table:
+        symbol_table = False
+        for step in wf_json['steps'].values():
+            annot = step['annotation']
+            stepname = annot[:annot.index('---')] if annot else step['name']
+            if 'symbol table' in stepname:
+                remove_step_from_wf(step['id'], wf_json)
+                symbol_table = True
+                break
+
+
 def remove_step_from_wf(removestep_id, wf_json):
     del(wf_json['steps'][str(removestep_id)])
     newsteps = {}
@@ -333,6 +359,9 @@ def new_run_workflow(inputstore, gi):
                 specquant_wfjson = get_spectraquant_wf(inputstore)
                 connect_specquant_workflow(specquant_wfjson, raw_json)
             wf_json = add_repeats_to_workflow_json(inputstore, raw_json)
+            if modtype == 'search' and inputstore['wf']['dbtype'] != 'ensembl':
+                remove_ensembl_steps(wf_json)
+            print('Filling in runtime values...')
             for step in wf_json['steps'].values():
                 fill_runtime_params(step, inputstore['params'])
             uploaded = gi.workflows.import_workflow_json(wf_json)
