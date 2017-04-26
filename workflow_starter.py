@@ -324,6 +324,32 @@ def remove_step_from_wf(removestep_id, wf_json):
     wf_json['steps'] = newsteps
 
 
+def remove_isobaric_from_peptide_centric(wf_json):
+    print('Removing isobaric steps and inputs from workflow')
+    # set isobaric to false in PSM table and peptide table
+    # remove normal-psm-table
+    #
+
+    def fill_in_iso(step, isokey, subkey, value):
+        ts = json.loads(step['tool_state'])
+        iso_ts = json.loads(ts[isokey])
+        iso_ts[subkey] = value
+        ts[isokey] = json.dumps(iso_ts)
+        step['tool_state'] = json.dumps(ts)
+
+    for step in wf_json['steps'].values():
+        if step['name'] == 'Process PSM table':
+            fill_in_iso(step, 'isobaric', 'yesno', 'false')
+            fill_in_iso(step, 'isobaric', 'denompatterns', '')
+        elif step['name'] == 'Create peptide table':
+            fill_in_iso(step, 'isoquant', 'yesno', 'false')
+            fill_in_iso(step, 'isoquant', 'denompatterns', '')
+        elif step['name'] == 'Merge peptide or protein tables':
+            ts = json.loads(step['tool_state'])
+            ts['isobqcolpattern'] = json.dumps('')
+            ts['nopsmcolpattern'] = json.dumps('')
+
+
 def is_runtime_param(val, name, step):
     try:
         isruntime = val['__class__'] == 'RuntimeValue'
@@ -361,6 +387,9 @@ def new_run_workflow(inputstore, gi):
             wf_json = add_repeats_to_workflow_json(inputstore, raw_json)
             if modtype == 'search' and inputstore['wf']['dbtype'] != 'ensembl':
                 remove_ensembl_steps(wf_json)
+            if (modtype == 'peptides noncentric' and
+                    inputstore['wf']['quanttype'] == 'labelfree'):
+                remove_isobaric_from_peptide_centric(wf_json)
             print('Filling in runtime values...')
             for step in wf_json['steps'].values():
                 fill_runtime_params(step, inputstore['params'])
