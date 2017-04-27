@@ -233,13 +233,22 @@ def get_spectraquant_wf(inputstore):
         return json.load(fp)
 
 
+def get_step_tool_states(wf_json):
+    return {step['id']: json.loads(step['tool_state'])
+            for step in wf_json['steps'].values()}
+
+
+def get_input_dset_step_id_for_name(tool_states, name):
+    return [step_id for step_id, ts in tool_states.items()
+            if 'name' in ts and ts['name'] == name][0]
+
+
 def connect_specquant_workflow(spec_wf_json, search_wf_json):
     print('Connecting spectra quant workflow to search workflow')
-    step_tool_states = {step['id']: json.loads(step['tool_state'])
-                        for step in search_wf_json['steps'].values()}
+    step_tool_states = get_step_tool_states(search_wf_json)
     # first remove quant lookup input
-    qlookup_step_id = [step_id for step_id, ts in step_tool_states.items()
-                       if 'name' in ts and ts['name'] == 'quant lookup'][0]
+    qlookup_step_id = get_input_dset_step_id_for_name(step_tool_states,
+                                                      'quant lookup')
     remove_step_from_wf(qlookup_step_id, search_wf_json)
     # to make space for spec quant, change ID on all steps, and all connections
     first_tool_stepnr = min([x['id'] for x in search_wf_json['steps'].values()
@@ -258,8 +267,7 @@ def connect_specquant_workflow(spec_wf_json, search_wf_json):
         newsteps[str(step['id'])] = step
     search_wf_json['steps'] = newsteps
     # Subtract 1 because we have removed an input step (quant lookup)
-    spec_step_id = [step_id for step_id, ts in step_tool_states.items()
-                    if 'name' in ts and ts['name'] == 'spectra'][0]
+    spec_step_id = get_input_dset_step_id_for_name(step_tool_states, 'spectra')
     if spec_step_id > qlookup_step_id:
         spec_step_id -= 1
     # Add spectra/quant steps, connect to spectra collection input
@@ -293,10 +301,9 @@ def remove_ensembl_steps(wf_json):
             step['inputs'] = [x for x in step['inputs']
                               if x['name'] != 'mapfn']
     # remove biomart input, update all IDs that come from there
-    step_tool_states = {step['id']: json.loads(step['tool_state'])
-                        for step in wf_json['steps'].values()}
-    mart_step_id = [step_id for step_id, ts in step_tool_states.items()
-                    if 'name' in ts and ts['name'] == 'biomart map'][0]
+    step_tool_states = get_step_tool_states(wf_json)
+    mart_step_id = get_input_dset_step_id_for_name(step_tool_states,
+                                                   'biomart map')
     remove_step_from_wf(mart_step_id, wf_json)
     # remove all boxes which say symbol_table in annotation
     symbol_table = True
