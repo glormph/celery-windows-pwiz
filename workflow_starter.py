@@ -424,8 +424,7 @@ def new_run_workflow(inputstore, gi):
     of tasks for celery. Will either use the existing celery task or fetch
     workflow JSON, mend and fill it and create a celery task for it.
     It then queues tasks to celery"""
-    # FIXME if quant lookup exists, do not use specquant wf
-    #inputstore = wfmanage.new_transfer_workflow_modules(inputstore)
+    timest = datetime.strftime(datetime.now(), '%Y%m%d_%H.%M')
     # wf passed is {'version': x, 'mods': [(name, uuid), (name, uuid)]
     inputstore['searchtype'] = inputstore['wf']['searchtype']
     inputstore['searchname'] = get_searchname(inputstore)
@@ -438,12 +437,13 @@ def new_run_workflow(inputstore, gi):
         else:
             modname, version, modtype = module[0], module[1], module[2]
             raw_json = get_versioned_module(modname, version)
-            if (modtype == 'search' and
+            if (modtype == 'proteingenes' and
                     inputstore['datasets']['quant lookup']['id'] is None):
                 specquant_wfjson = get_spectraquant_wf(inputstore)
                 connect_specquant_workflow(specquant_wfjson, raw_json)
             wf_json = add_repeats_to_workflow_json(inputstore, raw_json)
-            if modtype == 'search' and inputstore['wf']['dbtype'] != 'ensembl':
+            if (modtype == 'proteingenes' and
+                    inputstore['wf']['dbtype'] != 'ensembl'):
                 remove_ensembl_steps(wf_json)
             if inputstore['wf']['quanttype'] == 'labelfree':
                 if modtype == 'peptides noncentric':
@@ -453,9 +453,11 @@ def new_run_workflow(inputstore, gi):
             print('Filling in runtime values...')
             for step in wf_json['steps'].values():
                 fill_runtime_params(step, inputstore['params'])
+            print('Uploading workflow...')
+            wf_json['name'] = '{}_{}'.format(inputstore['searchname'], timest)
             uploaded = gi.workflows.import_workflow_json(wf_json)
-            inputstore['wf']['uploaded'][modname] = uploaded['id']
-            runchain.append(tasks.run_workflow_module.s(uploaded['id']))
+            inputstore['wf']['uploaded'][uploaded['id']] = wf_json
+            runchain.append(tasks.run_search_wf.s(uploaded['id']))
     runchain.extend(tasks.get_download_task_chain())
     res = chain(*runchain)
     res.delay()
