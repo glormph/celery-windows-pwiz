@@ -11,6 +11,18 @@ from tasks.galaxy import util
 from tasks.galaxy import nonwf_tasks
 
 
+def initialize_datasets():
+    """Fills inputstore with empty dict of datasets which are to be
+    made by Galaxy"""
+    inputs = {name: {'src': 'hda', 'id': None} for name in
+              wfmanage.get_flatfile_names_inputstore()}
+    inputs.update({name: {'src': 'hdca', 'id': None} for name in
+                   wfmanage.get_collection_names_inputstore()})
+    inputs.update({name: None for name in
+                   wfmanage.get_other_names_inputstore()})
+    return inputs
+
+
 def prep_inputs(inputstore, parsespecial):
     # FIXME this is a new method, untested
     """Input checking. In UI we just demand inputs on the spot by reading

@@ -237,17 +237,6 @@ def get_workflow_outputs(wf_json):
     return outputs
 
 
-def initialize_datasets():
-    """(Re)fills inputstore with empty dict of datasets which are to be
-    made by Galaxy"""
-    inputs = {name: {'src': 'hda', 'id': None} for name in
-              get_flatfile_names_inputstore()}
-    inputs.update({name: {'src': 'hdca', 'id': None} for name in
-                   get_collection_names_inputstore()})
-    inputs.update({name: None for name in get_other_names_inputstore()})
-    return inputs
-
-
 def get_flatfile_names_inputstore():
     return galaxydata.flatfile_names
 
