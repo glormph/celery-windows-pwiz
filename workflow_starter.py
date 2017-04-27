@@ -190,15 +190,24 @@ def connect_percolator_in_steps(wf_json, percin_input_stepids):
 
 def get_versioned_module(modname, version):
     # FIXME db call to get a version of the modname
-    return json_workflows[modname]
+    # FIXME create gh repo with versions
+    with open('json_workflows/{}_v{}.json'.format(modname, version)) as fp:
+        return json.load(fp)
 
 
 def fill_runtime_params(step, params):
     """Should return step tool_id, name, composed_name"""
     tool_param_inputs = json.loads(step['tool_state'])
+    # Use annotation to define step name in case that is given, to be able
+    # to get steps like sed which have a very general name and may occur more
+    # than once
     annot = step['annotation']
     stepname = annot[:annot.index('---')] if annot else step['name']
+    dset_input_names = [x['name'] for x in step['inputs'] if not
+                        x['description'].startswith('runtime parameter')]
     for input_name, input_val in tool_param_inputs.items():
+        if input_name in dset_input_names:
+            continue
         try:
             input_val = json.loads(input_val)
         except (TypeError, ValueError):
@@ -211,7 +220,6 @@ def fill_runtime_params(step, params):
                 # complex input dict from e.g. conditional which contains
                 # a dict possibly containing runtime value
                 # TODO make this recursive maybe for nested conditionals
-                pass
                 for subname, subval in input_val.items():
                     composed_name = '{}|{}'.format(input_name, subname)
                     if is_runtime_param(subval, composed_name, step):
@@ -219,8 +227,14 @@ def fill_runtime_params(step, params):
                 tool_param_inputs[input_name] = json.dumps(input_val)
             else:
                 if is_runtime_param(input_val, input_name, step):
-                    tool_param_inputs[input_name] = json.dumps(
-                        params[stepname][input_name])
+                    try:
+                        tool_param_inputs[input_name] = json.dumps(
+                            params[stepname][input_name])
+                    except:
+                        print('WARNING, RuntimeValue for tool {}, param {} '
+                              'expected, but nothing passed (possibly is an '
+                              'unneeded dataset though).'.format(stepname,
+                                                                 input_name))
     step['tool_state'] = json.dumps(tool_param_inputs)
 
 
