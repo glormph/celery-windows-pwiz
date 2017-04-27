@@ -331,19 +331,16 @@ def remove_step_from_wf(removestep_id, wf_json):
     wf_json['steps'] = newsteps
 
 
-def remove_isobaric_from_peptide_centric(wf_json):
+def fill_in_iso(step, isokey, subkey, value):
+    ts = json.loads(step['tool_state'])
+    iso_ts = json.loads(ts[isokey])
+    iso_ts[subkey] = value
+    ts[isokey] = json.dumps(iso_ts)
+    step['tool_state'] = json.dumps(ts)
+
+
+def disable_isobaric_params(wf_json, proteincentric=False):
     print('Removing isobaric steps and inputs from workflow')
-    # set isobaric to false in PSM table and peptide table
-    # remove normal-psm-table
-    #
-
-    def fill_in_iso(step, isokey, subkey, value):
-        ts = json.loads(step['tool_state'])
-        iso_ts = json.loads(ts[isokey])
-        iso_ts[subkey] = value
-        ts[isokey] = json.dumps(iso_ts)
-        step['tool_state'] = json.dumps(ts)
-
     for step in wf_json['steps'].values():
         if step['name'] == 'Process PSM table':
             fill_in_iso(step, 'isobaric', 'yesno', 'false')
@@ -355,6 +352,34 @@ def remove_isobaric_from_peptide_centric(wf_json):
             ts = json.loads(step['tool_state'])
             ts['isobqcolpattern'] = json.dumps('')
             ts['nopsmcolpattern'] = json.dumps('')
+            step['tool_state'] = json.dumps(ts)
+        elif proteincentric and step['name'] == 'Create protein table':
+            fill_in_iso(step, 'isoquant', 'yesno', 'false')
+            fill_in_iso(step, 'isoquant', 'denompatterns', '')
+
+
+def remove_isobaric_from_peptide_centric(wf_json):
+    disable_isobaric_params(wf_json)
+    step_toolstates = get_step_tool_states(wf_json)
+    psmstep = get_input_dset_step_id_for_name(step_toolstates,
+                                              'PSM table target normalsearch')
+    for step in wf_json['steps'].values():
+        if (step['name'] == 'Split tabular data' and
+                step['input_connections']['input']['id'] == psmstep):
+            remove_step_from_wf(step['id'], wf_json)
+            break
+    remove_step_from_wf(psmstep, wf_json)
+
+
+def remove_isobaric_from_protein_centric(wf_json):
+    # Remove normalize generating step
+    for step in wf_json['steps'].values():
+        annot = step['annotation']
+        stepname = annot[annot.index('---') + 3:] if annot else step['name']
+        if stepname.strip() == 'Normalization-ratio generating step':
+            remove_step_from_wf(step['id'], wf_json)
+            break
+    disable_isobaric_params(wf_json, proteincentric=True)
 
 
 def is_runtime_param(val, name, step):
@@ -394,9 +419,11 @@ def new_run_workflow(inputstore, gi):
             wf_json = add_repeats_to_workflow_json(inputstore, raw_json)
             if modtype == 'search' and inputstore['wf']['dbtype'] != 'ensembl':
                 remove_ensembl_steps(wf_json)
-            if (modtype == 'peptides noncentric' and
-                    inputstore['wf']['quanttype'] == 'labelfree'):
-                remove_isobaric_from_peptide_centric(wf_json)
+            if inputstore['wf']['quanttype'] == 'labelfree':
+                if modtype == 'peptides noncentric':
+                    remove_isobaric_from_peptide_centric(wf_json)
+                if modtype == 'proteingenes':
+                    remove_isobaric_from_protein_centric(wf_json)
             print('Filling in runtime values...')
             for step in wf_json['steps'].values():
                 fill_runtime_params(step, inputstore['params'])
