@@ -614,16 +614,6 @@ def write_report(inputstore):
         json.dump(report, fp, indent=2)
 
 
-def initialize_datasets():
-    """(Re)fills inputstore with empty dict of datasets which are to be
-    made by Galaxy"""
-    inputs = {name: {'src': 'hda', 'id': None} for name in
-              get_flatfile_names_inputstore()}
-    inputs.update({name: {'src': 'hdca', 'id': None} for name in
-                   get_collection_names_inputstore()})
-    return inputs
-
-
 def check_outputs_workflow_ok(gi, inputstore):
     """Checks if to-download datasets in workflow are finished, sets their API
     ID as download_id if they are ready, returns workflow_ok status in case

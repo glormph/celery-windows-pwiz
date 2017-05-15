@@ -15,12 +15,24 @@ def initialize_datasets():
     """Fills inputstore with empty dict of datasets which are to be
     made by Galaxy"""
     inputs = {name: {'src': 'hda', 'id': None} for name in
-              wfmanage.get_flatfile_names_inputstore()}
+              get_flatfile_names_inputstore()}
     inputs.update({name: {'src': 'hdca', 'id': None} for name in
-                   wfmanage.get_collection_names_inputstore()})
+                   get_collection_names_inputstore()})
     inputs.update({name: None for name in
-                   wfmanage.get_other_names_inputstore()})
+                   get_other_names_inputstore()})
     return inputs
+
+
+def get_flatfile_names_inputstore():
+    return galaxydata.flatfile_names
+
+
+def get_collection_names_inputstore():
+    return galaxydata.collection_names
+
+
+def get_other_names_inputstore():
+    return galaxydata.other_names
 
 
 def prep_inputs(inputstore, parsespecial):

@@ -237,13 +237,3 @@ def get_workflow_outputs(wf_json):
     return outputs
 
 
-def get_flatfile_names_inputstore():
-    return galaxydata.flatfile_names
-
-
-def get_collection_names_inputstore():
-    return galaxydata.collection_names
-
-
-def get_other_names_inputstore():
-    return galaxydata.other_names
