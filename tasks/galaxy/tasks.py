@@ -398,7 +398,8 @@ def create_6rf_split_dbs(inputstore):
     splitpeptables = {x: {} for x in params['setnames']}
     for setname, peptable_id in peptable_ds.items():
         pep_in = {'src': 'hda', 'id': peptable_id}
-        for pipat, stripname in zip(params['strippatternlist'], params['strips']):
+        for pipat, stripname in zip(params['strippatternlist'],
+                                    params['strips']):
             greppat = 'Uploaded|{}'.format(pipat)
             pipep = gi.tools.run_tool(inputstore['history'], greptool,
                                       tool_inputs={'infile': pep_in,
@@ -414,17 +415,19 @@ def create_6rf_split_dbs(inputstore):
                      if ds['id'] == 'dummy peptable'][0]
     dsnames = []
 
-    for stripix, stripname in enumerate(params['strips']):
+    for stripdata in enumerate(params['strips']):
         for setpattern, setname in zip(params['setpatterns'],
                                        params['setnames']):
-            mod_inputs[pepshift_uuid] = splitpeptables[setname][stripname]
+            mod_inputs[pepshift_uuid] = splitpeptables[setname][
+                stripdata['name']]
             wfparams = {'6rf_splitter':
-                        {'intercept': params['interceptlist'][stripix],
-                         'tolerance': params['pi_tolerances'][stripix],
-                         'fr_width': params['fr_widthlist'][stripix],
-                         'fr_amount': params['fr_amounts'][stripix],
-                         'reverse': params['reverses'][stripix]}}
-            replace = {'newname': get_prefracdb_name(setpattern, stripname)}
+                        {'intercept': stripdata['intercept'],
+                         'tolerance': stripdata['pi_tolerance'],
+                         'fr_width': stripdata['fr_width'],
+                         'fr_amount': stripdata['fr_amount'],
+                         'reverse': stripdata['reverse']}}
+            replace = {'newname':
+                       get_prefracdb_name(setpattern, stripdata['name'])}
             gi.workflows.invoke_workflow(galaxydata.wf_modules['6rf split'],
                                          inputs=mod_inputs, params=wfparams,
                                          history_id=inputstore['history'],
