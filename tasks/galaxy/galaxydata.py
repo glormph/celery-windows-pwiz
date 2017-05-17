@@ -323,3 +323,4 @@ strips = {'37-49': {'fr_width': 0.0174,
                   'fr_amount': 72,
                   'reverse': False},
           }
+strips = {name: {**strips[name], **{'name': name}} for name in strips}

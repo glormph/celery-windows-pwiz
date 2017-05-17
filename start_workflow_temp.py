@@ -173,7 +173,7 @@ def parse_special_inputs(inputstore, gi):
         params['setnames'] = sets
         params['setpatterns'] = sets
     if 'strips' in params:
-        #'strips': [{'intercept': 3.5959, 'fr_width': 0.0174, 'etc'},
+        #'strips': [{'intercept': 3.5959, 'fr_width': 0.0174, 'name': '3-10'},
         #           {'intercept': 3.5478, 'fr_width': 0.0676}],
         #'strippatterns': ['IEF_37-49', 'IEF_3-10']}}
         params['strips'] = [galaxydata.strips[x] for x in params['strips']]

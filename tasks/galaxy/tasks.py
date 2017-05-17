@@ -47,7 +47,7 @@ def create_spectra_db_pairedlist(inputstore):
     params = inputstore['params']
     speccol = get_collection_contents(gi, dsets['spectra']['history'],
                                       dsets['spectra']['id'])
-    setpatterns, pipatterns = params['setpatterns'], params['strippatternlist']
+    setpatterns, pipatterns = params['setpatterns'], params['strippatterns']
 
     def get_coll_name_id(collection):
         return ((x['object']['name'], x['object']['id'])
@@ -58,8 +58,9 @@ def create_spectra_db_pairedlist(inputstore):
         pidbcol = {}
         for set_id in setpatterns:
             pidbcol[set_id] = {}
-            for pipat, stripname in zip(pipatterns, params['strips']):
-                dbname = '{}_{}'.format(td, get_prefracdb_name(set_id, stripname))
+            for pipat, strip in zip(pipatterns, params['strips']):
+                dbname = '{}_{}'.format(td, get_prefracdb_name(set_id,
+                                                               strip['name']))
                 pidbcol[set_id][pipat] = {
                     # Hardcoded fr matcher for db
                     int(re.sub('.*fr([0-9][0-9]).*', r'\1',
@@ -398,14 +399,13 @@ def create_6rf_split_dbs(inputstore):
     splitpeptables = {x: {} for x in params['setnames']}
     for setname, peptable_id in peptable_ds.items():
         pep_in = {'src': 'hda', 'id': peptable_id}
-        for pipat, stripname in zip(params['strippatternlist'],
-                                    params['strips']):
+        for pipat, strip in zip(params['strippatternlist'], params['strips']):
             greppat = 'Uploaded|{}'.format(pipat)
             pipep = gi.tools.run_tool(inputstore['history'], greptool,
                                       tool_inputs={'infile': pep_in,
                                                    'url_paste': greppat})
-            splitpeptables[setname][stripname] = {'src': 'hda', 'id':
-                                                  pipep['outputs'][0]['id']}
+            splitpeptables[setname][strip['name']] = {
+                'src': 'hda', 'id': pipep['outputs'][0]['id']}
     # Now run 6RF split wf
     module = gi.workflows.show_workflow(galaxydata.wf_modules['6rf split'])
     # get_input_map will error on peptable shift not existing so we pass dummy
@@ -415,24 +415,24 @@ def create_6rf_split_dbs(inputstore):
                      if ds['id'] == 'dummy peptable'][0]
     dsnames = []
 
-    for stripdata in enumerate(params['strips']):
+    for strip in params['strips']:
         for setpattern, setname in zip(params['setpatterns'],
                                        params['setnames']):
             mod_inputs[pepshift_uuid] = splitpeptables[setname][
-                stripdata['name']]
+                strip['name']]
             wfparams = {'6rf_splitter':
-                        {'intercept': stripdata['intercept'],
-                         'tolerance': stripdata['pi_tolerance'],
-                         'fr_width': stripdata['fr_width'],
-                         'fr_amount': stripdata['fr_amount'],
-                         'reverse': stripdata['reverse']}}
+                        {'intercept': strip['intercept'],
+                         'tolerance': strip['pi_tolerance'],
+                         'fr_width': strip['fr_width'],
+                         'fr_amount': strip['fr_amount'],
+                         'reverse': strip['reverse']}}
             replace = {'newname':
-                       get_prefracdb_name(setpattern, stripdata['name'])}
+                       get_prefracdb_name(setpattern, strip['name'])}
             gi.workflows.invoke_workflow(galaxydata.wf_modules['6rf split'],
                                          inputs=mod_inputs, params=wfparams,
                                          history_id=inputstore['history'],
                                          replacement_params=replace)
-            dsname = get_prefracdb_name(setpattern, stripname)
+            dsname = get_prefracdb_name(setpattern, strip['name'])
             for td in ['target', 'decoy']:
                 fullname = '{}_{}'.format(td, dsname)
                 dsnames.append(fullname)
