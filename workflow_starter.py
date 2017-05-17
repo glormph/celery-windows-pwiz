@@ -284,7 +284,13 @@ def fill_runtime_params(step, params):
                 for subname, subval in input_val.items():
                     composed_name = '{}|{}'.format(input_name, subname)
                     if is_runtime_param(subval, composed_name, step):
-                        input_val[subname] = params[stepname][composed_name]
+                        try:
+                            input_val[subname] = params[stepname][composed_name]
+                        except:
+                            print('WARNING, RuntimeValue for tool {}, param {} '
+                                  'expected, but nothing passed (possibly is an '
+                                  'unneeded dataset though).'.format(stepname,
+                                                                     composed_name))
                 tool_param_inputs[input_name] = json.dumps(input_val)
             else:
                 if is_runtime_param(input_val, input_name, step):
