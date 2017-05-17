@@ -63,13 +63,54 @@ def prep_inputs(inputstore, gi):
     return inputstore
 
 
-def prep_libdsets(inputstore):
-    gi = util.get_galaxy_instance(inputstore)
-    libdsets = wfmanage.get_library_dsets(gi, inputstore['wf']['lib_inputs'])
-    inputstore['datasets'].update(libdsets)
-    print('Using datasets from library:', libdsets)
-    return inputstore, gi
+def prep_libdsets(inputstore, gi):
+    # FIXME this is a CLI thing
+    all_picked_libdsets = []
+    for required_libdset in inputstore['wf']['lib_inputs']:
+        if inputstore['datasets'][required_libdset]['id'] is None:
+            pick_libds = get_library_dset(gi, required_libdset)
+            if pick_libds:
+                inputstore['datasets'][required_libdset] = pick_libds
+                all_picked_libdsets.append(pick_libds)
+    print('Using datasets from library:', all_picked_libdsets)
+    return inputstore
 
+
+def get_library_dset(gi, lib_dset_name):
+    # FIXME this is a CLI thing
+    dset_names_libname = {'target db': 'databases',
+                          'decoy db': 'databases',
+                          'knownpep db': 'databases',
+                          'knownpep allpep lookup': 'lookups',
+                          'knownpep tryp lookup': 'lookups',
+                          'biomart map': 'marts',
+                          'modifications': 'modifications',
+                          'pipeptides known db': 'pipeptides',
+                          }
+    libtype = dset_names_libname[lib_dset_name]
+    dsets = gi.libraries.show_library(galaxydata.libraries[libtype],
+                                      contents=True)
+    print('Select a {} dataset from {}, or enter to skip'.format(lib_dset_name,
+                                                                 libtype))
+    print('--------------------')
+    dsets = [x for x in dsets if x['type'] == 'file']
+    for ix, dset in enumerate(dsets):
+        print(ix, dset['name'])
+    while True:
+        pick = input('Enter selection: ')
+        if pick == '':
+            break
+        try:
+            pick = int(pick)
+        except ValueError:
+            print('Please enter a number corresponding to a dataset or '
+                  'enter')
+            continue
+        break
+    if pick != '':
+        return {'src': 'ld', 'id': dsets[pick]['id'],
+                'galaxy_name': dsets[pick]['name']}
+    return False
 
 def select_workflow():
     print('--------------------')
