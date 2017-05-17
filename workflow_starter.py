@@ -343,7 +343,12 @@ def connect_specquant_workflow(spec_wf_json, search_wf_json):
         if step['id'] >= first_tool_stepnr:
             step['id'] = step['id'] + amount_spec_steps
             for connection in step['input_connections'].values():
-                if connection['id'] >= first_tool_stepnr:
+                if type(connection) == list:
+                    for multi_connection in connection:
+                        if multi_connection['id'] >= first_tool_stepnr:
+                            multi_connection['id'] = (multi_connection['id'] +
+                                                      amount_spec_steps)
+                elif connection['id'] >= first_tool_stepnr:
                     connection['id'] = connection['id'] + amount_spec_steps
         newsteps[str(step['id'])] = step
     search_wf_json['steps'] = newsteps
@@ -406,7 +411,11 @@ def remove_step_from_wf(removestep_id, wf_json):
         if step['id'] > removestep_id:
             step['id'] -= 1
         for connection in step['input_connections'].values():
-            if connection['id'] > removestep_id:
+            if type(connection) == list:
+                for multi_connection in connection:
+                    if multi_connection['id'] > removestep_id:
+                        multi_connection['id'] -= 1
+            elif connection['id'] > removestep_id:
                 connection['id'] -= 1
         newsteps[str(step['id'])] = step
     wf_json['steps'] = newsteps
