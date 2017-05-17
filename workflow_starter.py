@@ -35,31 +35,27 @@ def get_other_names_inputstore():
     return galaxydata.other_names
 
 
-def prep_inputs(inputstore, parsespecial):
+def prep_inputs(inputstore, gi):
     # FIXME this is a new method, untested
     """Input checking. In UI we just demand inputs on the spot by reading
     from the wf. Then we need to also specify the optional ones, but this
     can be a start"""
-    gi = util.get_galaxy_instance(inputstore)
-    parsespecial(inputstore, gi)
     input_error = False
     # Library inputs are not checked because they are asked for
     for in_dset in inputstore['datasets']:
         if in_dset not in inputstore['wf']['required_dsets']:
             continue
-        elif in_dset in wfmanage.get_other_names_inputstore():
+        elif in_dset in get_other_names_inputstore():
             checkval = inputstore['datasets'][in_dset]
         else:
             checkval = inputstore['datasets'][in_dset]['id']
         if checkval is None:
-            print('Dataset or parameter {} not specified. '
-                  'Exiting.'.format(in_dset))
+            print('Dataset or parameter {} not specified.'.format(in_dset))
             input_error = True
     for in_param in inputstore['wf']['required_params']:
         if (in_param not in inputstore['params'] or
                 inputstore['params'][in_param] is None):
-            print('Required parameter {} not specified. '
-                  'Exiting.'.format(in_param))
+            print('Required parameter {} not specified.'.format(in_param))
             input_error = True
     if input_error:
         return False

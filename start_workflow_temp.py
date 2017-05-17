@@ -41,6 +41,7 @@ def parse_commandline(inputstore):
     parser.add_argument('--setpatterns', dest='setpatterns', nargs='+')
     parser.add_argument('--isobtype', dest='multiplextype', default=None)
     parser.add_argument('--instrument', dest='instrument', default=None)
+    parser.add_argument('--mods', dest='modifications', nargs='+')
     parser.add_argument('--denominators', dest='denominators', nargs='+')
     parser.add_argument('--strips', dest='strips', nargs='+', help='Specify '
                         'which strips have been used in split DB experiments '
@@ -69,12 +70,12 @@ def parse_commandline(inputstore):
         inputstore['run'] = 'connectivity'
     else:
         inputstore['run'] = True
-    for name in (wfmanage.get_flatfile_names_inputstore() + 
-                 wfmanage.get_collection_names_inputstore()):
+    for name in (wfstarter.get_flatfile_names_inputstore() +
+                 wfstarter.get_collection_names_inputstore()):
         parsename = name.replace(' ', '_')
         if hasattr(args, parsename) and getattr(args, parsename) is not None:
             inputstore['datasets'][name]['id'] = getattr(args, parsename)
-    for name in wfmanage.get_other_names_inputstore():
+    for name in wfstarter.get_other_names_inputstore():
         parsename = name.replace(' ', '_')
         if hasattr(args, parsename) and getattr(args, parsename) is not None:
             inputstore['datasets'][name] = getattr(args, parsename)
@@ -85,6 +86,7 @@ def parse_commandline(inputstore):
         sys.exit(1)
     for param in ['setnames', 'setpatterns', 'multiplextype', 'genefield',
                   'perco_ids', 'ppoolsize', 'fastadelim', 'filesassets',
+                  'modifications', 'instrument', 'fr_matcher',
                   'strips', 'strippatterns', 'sort_specfiles']:
         if getattr(args, param) is not None:
             inputstore['params'][param] = getattr(args, param)
@@ -97,22 +99,22 @@ def parse_commandline(inputstore):
 
 def get_massshift(isobtype):
     return {'tmt10plex': '0.0013',
-            }
+            }[isobtype]
 
 
 def get_msgf_inputs(params):
     inputs = {'common_variable_modifications': [],
               'common_fixed_modifications': []}
-    if params['isobtype'] in ['tmt10plex', 'tmt6plex']:
+    if params['multiplextype'] in ['tmt10plex', 'tmt6plex']:
         print('TMT10/6plex detected')
         protocol = '4'
         inputs['common_fixed_modifications'] = [
             '229.162932_*_fix_N-term_TMT6plex',
             '229.162932_K_fix_any_TMT6plex']
-    elif params['isobtype'][:5] == 'itraq' and not params['phospho']:
+    elif params['multiplextype'][:5] == 'itraq' and not params['phospho']:
         print('iTRAQ detected')
         protocol = '2'
-    elif params['isobtype'][:5] == 'itraq' and params['phospho']:
+    elif params['multiplextype'][:5] == 'itraq' and params['phospho']:
         print('iTRAQ phospho detected')
         protocol = '3'
     elif params['phospho']:
@@ -142,20 +144,21 @@ def get_msgf_inputs(params):
             inputs['common_fixed_modifications'].append(mod)
         elif modtype == 'opt':
             inputs['common_variable_modifications'].append(mod)
+    return inputs
 
 
 def assign_inputs_tools(inputstore):
     params = inputstore['params']
-    if params['isobtype'] is not None:
+    if params['multiplextype'] is not None:
         params['IsobaricAnalyzer'] = {'param_extraction_reporter_mass_shift':
-                                      get_massshift(params['isobtype']),
-                                      'param_type': params['isobtype']}
+                                      get_massshift(params['multiplextype']),
+                                      'param_type': params['multiplextype']}
     params['MS-GF+'] = get_msgf_inputs(params)
     params['Create nested list'] = {'batchsize': params['ppoolsize']}
-    params['Get fraction numbers'] = {'code': params['code']}
+    params['Get fraction numbers'] = {'code': params['fr_matcher']}
     params['FDR gene table'] = {}
     for toolid in ['Create gene table', 'Create protein table',
-                   'Create symbol table']:
+                   'Create symbol table', 'Create peptide table']:
         params[toolid] = {'isoquant|denompatterns': params['denominators']}
 
 
@@ -179,7 +182,7 @@ def parse_special_inputs(inputstore, gi):
     if 'fr_matcher' in params:
         params['Get fraction numbers'] = {
             'code': ('s/{}/\\1/;s/\#SpecFile/'
-                     'Fractions/'.format(params['fr_matcher']))
+                     'Fractions/'.format(params['fr_matcher']))}
 
 
 if __name__ == '__main__':
