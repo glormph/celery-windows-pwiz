@@ -510,45 +510,37 @@ def run_workflow_module(self, inputstore, module_uuid):
     return inputstore
 
 
-@app.task(queue=config.QUEUE_GALAXY_WORKFLOW, bind=True)
-def get_datasets_to_download(self, inputstore):
-    print('Collecting dataset IDs to download')
-    gi = get_galaxy_instance(inputstore)
-    output_names = get_output_dsets(inputstore['wf'])
-    download_dsets = {name: inputstore['datasets'][name]
-                      for name in output_names}
+def get_datasets_to_download(inputstore, outpath_full, gi):
+    print('Collecting datasets to download')
+    download_dsets = {}
+    for step in [x for wfj in inputstore['wf']['uploaded'].values()
+                 for x in wfj['steps']['values']]:
+        pj = step['post_job_actions']
+        if 'RenameDatasetActionoutput' in pj:
+            nn = pj['RenameDatasetActionoutput']['action_arguments']['newname']
+            if nn[:4] == 'out:':
+                download_dsets[nn] = {}
     for name, dl_dset in download_dsets.items():
-        outname = '{}'.format(output_names[name])
-        outdir = '{}'.format(inputstore['searchname'].replace(' ', '_'))
+        outname = name[5:].replace(' ', '_')
         dl_dset.update({'download_state': False, 'download_id': False,
-                        'download_dest': os.path.join(inputstore['outshare'],
-                                                      outdir, outname)})
+                        'download_dest': os.path.join(outpath_full, outname)})
     inputstore['output_dsets'] = download_dsets
-    try:
-        update_inputstore_from_history(gi, inputstore['output_dsets'],
-                                       inputstore['output_dsets'].keys(),
-                                       inputstore['history'], 'download')
-    except Exception as e:
-        self.retry(countdown=60, exc=e)
+    update_inputstore_from_history(gi, inputstore['output_dsets'],
+                                   inputstore['output_dsets'].keys(),
+                                   inputstore['history'], 'download')
     print('Found datasets to download, {}'.format(download_dsets))
     return inputstore
 
 
-@app.task(queue=config.QUEUE_GALAXY_WORKFLOW, bind=True)
-def wait_for_completion(self, inputstore):
+def wait_for_completion(inputstore, gi):
     """Waits for all output data to be finished before continuing with
     download steps"""
     print('Wait for completion of datasets to download')
     workflow_ok = True
-    gi = get_galaxy_instance(inputstore)
     while workflow_ok and False in [x['download_id'] for x in
                                     inputstore['output_dsets'].values()]:
         print('Datasets not ready yet, checking')
-        try:
-            workflow_ok = check_outputs_workflow_ok(gi, inputstore)
-        except Exception as e:
-            self.retry(countdown=60, exc=e)
-        sleep(60)
+        workflow_ok = check_outputs_workflow_ok(gi, inputstore)
     if workflow_ok:
         print('Datasets ready for downloading in history '
               '{}'.format(inputstore['history']))
@@ -566,22 +558,24 @@ def cleanup(inputstore):
     # another history
 
 
-def get_download_task_chain(inputstore=False):
-    if inputstore:
-        tasks = [get_datasets_to_download.s(inputstore)]
-    else:
-        tasks = [get_datasets_to_download.s()]
-    tasks.extend([wait_for_completion.s(), download_result.s(),
-                  write_report.s()])
-    return tasks
-
-
 @app.task(queue=config.QUEUE_STORAGE, bind=True)
-def download_result(self, inputstore):
+def download_results(self, inputstore):
     """Downloads both zipped collections and normal datasets"""
     print('Got command to download results to disk from Galaxy for history '
           '{}'.format(inputstore['history']))
     gi = get_galaxy_instance(inputstore)
+    outpath_full = os.path.join(config.STORAGESHARE,
+                                '{}_results'.format(inputstore['user']),
+                                inputstore['outdir'])
+    try:
+        inputstore = get_datasets_to_download(inputstore, outpath_full, gi)
+        inputstore = wait_for_completion(inputstore, gi)
+    except:
+        self.retry(countdown=60)
+    for wf_j in inputstore['wf']['uploaded'].values():
+        wfname = 'workflow_{}'.format(wf_j['name'])
+        with open(os.path.join(outpath_full, wfname), 'w') as fp:
+            json.dump(wf_j, fp)
     for dset in inputstore['output_dsets'].values():
         dirname = os.path.dirname(dset['download_dest'])
         if not os.path.exists(dirname) or not os.path.isdir(dirname):

@@ -22,7 +22,6 @@ def parse_commandline(inputstore):
     parser = argparse.ArgumentParser(
         formatter_class=argparse.RawTextHelpFormatter)
     parser.add_argument('-u', dest='user')
-    parser.add_argument('--outshare', dest='outshare')
     parser.add_argument('--show', dest='show', action='store_const',
                         default=False, const=True)
     parser.add_argument('--test', dest='connectivity', action='store_const',
@@ -63,7 +62,6 @@ def parse_commandline(inputstore):
     args = parser.parse_args(sys.argv[1:])
     inputstore['user'] = args.user
     inputstore['apikey'] = config.USERS[args.user][1]
-    inputstore['outshare'] = args.outshare
     if args.show:
         inputstore['run'] = 'show'
     elif args.connectivity:
