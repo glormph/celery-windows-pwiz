@@ -1,4 +1,98 @@
 workflows = [
+    # FIXME runtime params cannot be checked before running,
+    # because not-connected datasets
+    # are also runtime vars and cannot be distinguished. Therefore, be very
+    # careful and do a dry run so you will see WARNINGs when not filling in
+    # params (and meaningless warnings for eg martmap in varDB search)
+    {
+        'name': 'New test IPG, ENSEMBL', 'modules': [
+            ('base_search', '0.1', 'proteingenes'),
+        ],
+        'searchtype': 'standard',
+        'dbtype': 'ensembl',
+        'quanttype': 'isobaric',
+        'required_params': ['multiplextype', 'denominators',
+                            'instrument', 'modifications',
+                            'setpatterns', 'setnames',
+                            'fr_matcher', 'strips', 'strippatterns',
+                            'perco_ids', 'ppoolsize'],
+        'required_dsets': [],
+        'not_used_tool_inputs': ['mzidnormalize'],
+        'his_inputs': [],
+        'lib_inputs': ['target db', 'decoy db', 'modifications', 'biomart map',
+                       'knownpep predpi tabular'],
+        'other_inputs': ['sourcehis', 'strips'],
+        'outputs': ['pout2mzid target tar', 'PSM table target',
+                    'peptide table', 'protein table', 'gene table',
+                    'symbol table'],
+    },
+    {
+        'name': 'New test IPG, uniprot', 'modules': [
+            ('@collect_source_spectra', 0.0),
+            ('base_search', '0.1', 'proteingenes'),
+        ],
+        'searchtype': 'standard',
+        'dbtype': 'uniprot',
+        'quanttype': 'isobaric',
+        'required_params': ['multiplextype', 'denominators',
+                            'instrument', 'modifications',
+                            'setpatterns', 'setnames',
+                            'fr_matcher', 'strips', 'strippatterns',
+                            'perco_ids', 'ppoolsize'],
+        'required_dsets': ['sourcehis'],
+        'not_used_tool_inputs': ['mzidnormalize'],
+        'his_inputs': [],
+        'lib_inputs': ['target db', 'decoy db', 'modifications', 'biomart map',
+                       'knownpep predpi tabular'],
+        'other_inputs': ['sourcehis', 'strips'],
+        'outputs': ['pout2mzid target tar', 'PSM table target',
+                    'peptide table', 'protein table', 'gene table',
+                    'symbol table'],
+    },
+    {
+        'name': 'New test IPG, varDB isobaric', 'modules': [
+            ('@collect_source_spectra', 0.0),
+            ('vardb_base', '0.1', 'peptides noncentric'),
+        ],
+        'searchtype': 'vardb',
+        'dbtype': 'vardb',
+        'quanttype': 'isobaric',
+        'required_params': ['multiplextype', 'denominators',
+                            'instrument', 'modifications',
+                            'setpatterns', 'setnames',
+                            'fr_matcher', 'strips', 'strippatterns',
+                            'perco_ids', 'ppoolsize'],
+        'required_dsets': ['sourcehis'],
+        'not_used_tool_inputs': ['mzidnormalize'],
+        'his_inputs': [],
+        'lib_inputs': ['target db', 'decoy db', 'modifications', 'biomart map',
+                       'knownpep predpi tabular'],
+        'other_inputs': ['sourcehis', 'strips'],
+        'outputs': ['pout2mzid target tar', 'PSM table target',
+                    'peptide table'],
+    },
+    {
+        'name': 'New test IPG, varDB labelfree', 'modules': [
+            ('@collect_source_spectra', 0.0),
+            ('vardb_base', '0.1', 'peptides noncentric'),
+        ],
+        'searchtype': 'vardb',
+        'dbtype': 'vardb',
+        'quanttype': 'labelfree',
+        'required_params': ['instrument', 'modifications',
+                            'setpatterns', 'setnames',
+                            'fr_matcher', 'strips', 'strippatterns',
+                            'perco_ids', 'ppoolsize'],
+        'required_dsets': ['sourcehis'],
+        'not_used_tool_inputs': ['mzidnormalize'],
+        'his_inputs': [],
+        'lib_inputs': ['target db', 'decoy db', 'modifications', 'biomart map',
+                       'knownpep predpi tabular'],
+        'other_inputs': ['sourcehis', 'strips'],
+        'outputs': ['pout2mzid target tar', 'PSM table target',
+                    'peptide table'],
+    },
+    # FIXME new 6RF JSON is fractionated_db_peptide_v0.1.json
     {
         'name': 'IPG, tmt10, ENSEMBL, QE', 'modules': [
             '@collect_source_spectra', '@mslookup_spectra',
@@ -268,6 +362,7 @@ collection_names = ['spectra',
 
 flatfile_names = ['target db',
                   'decoy db',
+                  'knownpep predpi tabular',
                   'pipeptides db',
                   'pipeptides known db',
                   'knownpep db',
@@ -295,11 +390,12 @@ flatfile_names = ['target db',
                   ]
 
 
-libraries = {'modifications': '85572375f4abb7f8',
-             'databases': '2eb7685dc8c8283c',
-             'marts': 'de51d320ed084ae0',
-             'pipeptides': 'fb0daa171f9de8a5',
-            }
+# Montezuma
+libraries = {'databases': 'a3437b7b0c19ebd1',
+             'marts': '86ed203ff9a94938',
+             'pipeptides': '128140af13bad45b',
+             'knownpeptides': 'e9b47af80022b6ee',
+             }
 
 
 strips = {'37-49': {'fr_width': 0.0174,
