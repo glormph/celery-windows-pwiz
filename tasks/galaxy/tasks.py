@@ -562,17 +562,21 @@ def get_datasets_to_download(inputstore, outpath_full, gi):
     print('Collecting datasets to download')
     download_dsets = {}
     for step in [x for wfj in inputstore['wf']['uploaded'].values()
-                 for x in wfj['steps']['values']]:
+                 for x in wfj['steps'].values()]:
+        if not 'post_job_actions' in step:
+            continue
         pj = step['post_job_actions']
-        if 'RenameDatasetActionoutput' in pj:
-            nn = pj['RenameDatasetActionoutput']['action_arguments']['newname']
-            if nn[:4] == 'out:':
-                download_dsets[nn] = {}
-    for name, dl_dset in download_dsets.items():
-        outname = name[5:].replace(' ', '_')
-        dl_dset.update({'download_state': False, 'download_id': False,
-                        'download_dest': os.path.join(outpath_full, outname)})
+        for pjk in pj:
+            if pjk[:19] == 'RenameDatasetAction':
+                nn = pj[pjk]['action_arguments']['newname']
+                if nn[:4] == 'out:':
+                    outname = nn[5:].replace(' ', '_')
+                    download_dsets[nn] = {
+                        'download_state': False, 'download_id': False,
+                        'id': None, 'src': 'hda',
+                        'download_dest': os.path.join(outpath_full, outname)}
     inputstore['output_dsets'] = download_dsets
+    print('Defined datasets from workflow: {}'.format(download_dsets.keys()))
     update_inputstore_from_history(gi, inputstore['output_dsets'],
                                    inputstore['output_dsets'].keys(),
                                    inputstore['history'], 'download')
@@ -618,12 +622,9 @@ def download_results(self, inputstore):
     try:
         inputstore = get_datasets_to_download(inputstore, outpath_full, gi)
         inputstore = wait_for_completion(inputstore, gi)
-    except:
-        self.retry(countdown=60)
-    for wf_j in inputstore['wf']['uploaded'].values():
-        wfname = 'workflow_{}'.format(wf_j['name'])
-        with open(os.path.join(outpath_full, wfname), 'w') as fp:
-            json.dump(wf_j, fp)
+    except Exception as e:
+        print('Problem downloading datasets, retrying in 60s. Problem message:', e)
+        self.retry(countdown=60, exc=e)
     for dset in inputstore['output_dsets'].values():
         dirname = os.path.dirname(dset['download_dest'])
         if not os.path.exists(dirname) or not os.path.isdir(dirname):
@@ -634,6 +635,10 @@ def download_results(self, inputstore):
                                          use_default_filename=False)
         except:
             self.retry(countdown=60)
+    for wf_j in inputstore['wf']['uploaded'].values():
+        wfname = 'workflow_{}'.format(wf_j['name'])
+        with open(os.path.join(outpath_full, wfname), 'w') as fp:
+            json.dump(wf_j, fp)
     print('Finished downloading results to disk for history '
           '{}'.format(inputstore['history']))
     return inputstore

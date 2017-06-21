@@ -372,21 +372,24 @@ flatfile_names = ['target db',
                   'spectra lookup',
                   'modifications',
                   'quant lookup',
-                  'PSM lookup target',
-                  'PSM lookup decoy',
+                  'psm lookup target',
+                  'psm lookup decoy',
                   'preprocessed PSMs target',
                   'preprocessed PSMs decoy',
                   'annotated PSMs target',
                   'annotated PSMs decoy',
                   'pout2mzid target tar',  # output
-                  'PSM table target',  # output
-                  'PSM table decoy',
+                  'psm table target',  # output
+                  'psm table decoy',
                   'proteingroup lookup target',
                   'proteingroup lookup decoy',
                   'peptide table',  # output
-                  'protein table',  # output
-                  'gene table',  # output
-                  'symbol table',  # output
+                  'proteintable',  # output
+                  'genetable',  # output
+                  'symboltable',  # output
+                  'qc.tar',
+                  'mzidentml target',
+                  'mzidentml decoy',
                   ]
 
 
