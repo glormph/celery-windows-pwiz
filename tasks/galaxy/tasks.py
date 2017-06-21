@@ -13,6 +13,57 @@ from tasks.galaxy import workflow_manage as wfmanage
 from celeryapp import app
 
 
+@app.task(queue=config.QUEUE_GALAXY_TOOLS_TEST, bind=True)
+def storage_copy_file(self, inputstore, number):
+    """Inputstore will contain one raw file, and a galaxy history.
+    Raw file will have a file_id which can be read by the DB"""
+    rawdata = inputstore['raw'][number]
+    print('Copy-importing {} to galaxy history '
+          '{}'.format(rawdata['filename'], inputstore['source_history']))
+    gi = get_galaxy_instance(inputstore)
+    tool_inputs = {
+        'folder': rawdata['folder'],
+        'filename': rawdata['filename'],
+        'transfertype': 'copy',
+        'dtype': 'mzml',
+    }
+    dset = gi.tools.run_tool(inputstore['source_history'], 'locallink',
+                             tool_inputs=tool_inputs)
+    state = dset['jobs'][0]['state']
+    while state in ['new', 'queued', 'running']:
+        sleep(10)
+        state = gi.jobs.show_job(dset['jobs'][0]['id'])['state']
+    if state == 'ok':
+        print('File {} imported'.format(rawdata['filename']))
+        rawdata['galaxy_id'] = dset['outputs'][0]['id']
+        return inputstore
+    else:
+        errormsg = 'Problem copying file {}'.format(rawdata['filename'])
+        print(errormsg)
+        self.retry(exc=errormsg)
+
+
+@app.task(queue=config.QUEUE_GALAXY_TOOLS_TEST, bind=True)
+def local_link_file(self, inputstore, number):
+    """Inputstore will contain one raw file, and a galaxy history.
+    Raw file will have a file_id which can be read by the DB"""
+    rawdata = inputstore['raw'][number]
+    print('Softlink-importing {} to galaxy history '
+          '{}'.format(rawdata['filename'], inputstore['source_history']))
+    gi = get_galaxy_instance(inputstore)
+    tool_inputs = {
+        'folder': rawdata['folder'],
+        'filename': rawdata['filename'],
+        'transfertype': 'link',
+        'dtype': 'mzml',
+    }
+    dset = gi.tools.run_tool(inputstore['source_history'], 'locallink',
+                             tool_inputs=tool_inputs)['outputs'][0]['id']
+    print('File {} imported'.format(rawdata['filename']))
+    rawdata['galaxy_id'] = dset[0]['id']
+    return inputstore
+
+
 @app.task(queue=config.QUEUE_GALAXY_TOOLS, bind=True)
 def tmp_import_file_to_history(self, inputstore):
     print('Importing {} to galaxy history {}'.format(inputstore['mzml'],
