@@ -610,6 +610,32 @@ def cleanup(inputstore):
     # another history
 
 
+@app.task(queue=config.QUEUE_STORAGE_TEST, bind=True)
+def store_summary(self, inputstore):
+    """Stores workflow JSON files, and other dataset choices in
+    a report file"""
+    gi = get_galaxy_instance(inputstore)
+    outpath_full = os.path.join(config.STORAGESHARE,
+                                '{}_results'.format(inputstore['user']),
+                                inputstore['outdir'])
+    for wf_j in inputstore['wf']['uploaded'].values():
+        wfname = 'workflow_{}'.format(wf_j['name'])
+        with open(os.path.join(outpath_full, wfname), 'w') as fp:
+            json.dump(wf_j, fp)
+    summaryfn = os.path.join(outpath_full, 'summary.json')
+    inputstore['summary'] = summaryfn
+    summary = {'datasets': {}, 'params': inputstore['params'],
+               'job_results': []}
+    for name, dset in inputstore['datasets'].items():
+        if dset['id'] is not None:
+            summary['datasets'][name] = dset
+            if dset['src'] != 'ld':
+                gname = gi.datasets.show_dataset(ds['id'])['name']
+                summary['datasets'][name]['galaxy_name'] = gname
+    with open(summaryfn, 'w') as fp:
+        json.dump(summary, fp)
+
+
 @app.task(queue=config.QUEUE_STORAGE, bind=True)
 def download_results(self, inputstore):
     """Downloads both zipped collections and normal datasets"""
@@ -623,7 +649,8 @@ def download_results(self, inputstore):
         inputstore = get_datasets_to_download(inputstore, outpath_full, gi)
         inputstore = wait_for_completion(inputstore, gi)
     except Exception as e:
-        print('Problem downloading datasets, retrying in 60s. Problem message:', e)
+        print('Problem downloading datasets, retrying in 60s. '
+              'Problem message:', e)
         self.retry(countdown=60, exc=e)
     for dset in inputstore['output_dsets'].values():
         dirname = os.path.dirname(dset['download_dest'])
@@ -635,10 +662,6 @@ def download_results(self, inputstore):
                                          use_default_filename=False)
         except:
             self.retry(countdown=60)
-    for wf_j in inputstore['wf']['uploaded'].values():
-        wfname = 'workflow_{}'.format(wf_j['name'])
-        with open(os.path.join(outpath_full, wfname), 'w') as fp:
-            json.dump(wf_j, fp)
     print('Finished downloading results to disk for history '
           '{}'.format(inputstore['history']))
     return inputstore

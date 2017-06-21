@@ -576,3 +576,4 @@ def run_workflow(inputstore, gi, existing_spectra=False):
         sys.exit(1)
     res = chain(*runchain)
     res.delay()
+    tasks.store_summary.delay(inputstore)
