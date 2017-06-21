@@ -154,18 +154,14 @@ def create_spectra_db_pairedlist(inputstore):
     return inputstore
 
 
-@app.task(queue=config.QUEUE_GALAXY_TOOLS)
-def tmp_put_files_in_collection(inputstore):
+def collect_spectra(inputstore, gi):
     print('Putting files from source histories {} in collection in search '
-          'history {}'.format(inputstore['datasets']['sourcehis'],
+          'history {}'.format(inputstore['source_history'],
                               inputstore['history']))
-    gi = get_galaxy_instance(inputstore)
     name_id_hdas = []
-    for sourcehis in inputstore['datasets']['sourcehis']:
-        name_id_hdas.extend([(ds['name'], ds['id']) for ds in
-                             gi.histories.show_history(sourcehis,
-                                                       contents=True,
-                                                       deleted=False)])
+    #for sourcehis in inputstore['datasets']['sourcehis']:
+    for mzml in inputstore['raw']:
+        name_id_hdas.append((mzml['filename'], mzml['galaxy_id']))
     if 'sort_specfiles' in inputstore['params']:
         name_id_hdas = sorted(name_id_hdas, key=lambda x: x[0])
     coll_spec = {
@@ -503,11 +499,12 @@ def get_json_workflow(inputstore):
     return inputstore['wf_json']
 
 
-@app.task(queue=config.QUEUE_GALAXY_WORKFLOW, bind=True)
+@app.task(queue=config.QUEUE_GALAXY_WORKFLOW_TEST, bind=True)
 def run_search_wf(self, inputstore, wf_id):
     print('Workflow start task: Preparing inputs for workflow '
           'module {}'.format(wf_id))
     gi = get_galaxy_instance(inputstore)
+    inputstore = collect_spectra(inputstore, gi)
     wf_json = inputstore['wf']['uploaded'][wf_id]
     input_labels = get_input_labels_json(wf_json)
     try:
