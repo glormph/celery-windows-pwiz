@@ -4,7 +4,6 @@ from datetime import datetime
 
 from tasks.galaxy import galaxydata
 from tasks.galaxy import tasks
-from tasks.galaxy import workflow_manage as wfmanage
 from tasks.galaxy import nonwf_tasks
 
 

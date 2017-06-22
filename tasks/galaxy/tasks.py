@@ -7,7 +7,6 @@ from time import sleep
 from tasks import config
 from tasks.galaxy.util import get_galaxy_instance
 from tasks.galaxy import galaxydata
-from tasks.galaxy import workflow_manage as wfmanage
 from celeryapp import app
 
 
@@ -509,11 +508,6 @@ def get_input_map(module, inputstore):
             'src': inputstore[label]['src'],
         }
     return inputmap
-
-
-def get_workflow_inputs(wfmod):
-    for modinput in wfmod['inputs'].values():
-        yield (modinput['label'], modinput['uuid'])
 
 
 def get_collection_id_in_his(his_contents, dset_name, named_dset_id, gi,
