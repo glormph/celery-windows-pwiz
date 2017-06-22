@@ -658,7 +658,6 @@ def download_results(self, inputstore):
               'Problem message:', e)
         self.retry(countdown=60, exc=e)
     for dset in inputstore['output_dsets'].values():
-        dirname = os.path.dirname(dset['download_dest'])
         try:
             gi.datasets.download_dataset(dset['download_id'],
                                          file_path=dset['download_dest'],

@@ -1,13 +1,10 @@
-import sys
 import json
 from celery import chain
 from datetime import datetime
 
 from tasks.galaxy import galaxydata
-from tasks.galaxy import json_workflows
 from tasks.galaxy import tasks
 from tasks.galaxy import workflow_manage as wfmanage
-from tasks.galaxy import util
 from tasks.galaxy import nonwf_tasks
 
 
@@ -18,8 +15,6 @@ def initialize_datasets():
               get_flatfile_names_inputstore()}
     inputs.update({name: {'src': 'hdca', 'id': None} for name in
                    get_collection_names_inputstore()})
-    inputs.update({name: None for name in
-                   get_other_names_inputstore()})
     return inputs
 
 
@@ -31,11 +26,7 @@ def get_collection_names_inputstore():
     return galaxydata.collection_names
 
 
-def get_other_names_inputstore():
-    return galaxydata.other_names
-
-
-def prep_inputs(inputstore, gi):
+def check_required_inputs(inputstore, gi):
     # FIXME this is a new method, untested
     """Input checking. In UI we just demand inputs on the spot by reading
     from the wf. Then we need to also specify the optional ones, but this
@@ -45,8 +36,6 @@ def prep_inputs(inputstore, gi):
     for in_dset in inputstore['datasets']:
         if in_dset not in inputstore['wf']['required_dsets']:
             continue
-        elif in_dset in get_other_names_inputstore():
-            checkval = inputstore['datasets'][in_dset]
         else:
             checkval = inputstore['datasets'][in_dset]['id']
         if checkval is None:
@@ -84,8 +73,7 @@ def get_library_dset(gi, lib_dset_name):
                           'knownpep allpep lookup': 'lookups',
                           'knownpep tryp lookup': 'lookups',
                           'biomart map': 'marts',
-                          'modifications': 'modifications',
-                          'pipeptides known db': 'pipeptides',
+                          'knownpep predpi tabular': 'pipeptides',
                           }
     libtype = dset_names_libname[lib_dset_name]
     dsets = gi.libraries.show_library(galaxydata.libraries[libtype],
