@@ -396,7 +396,25 @@ def connect_specquant_workflow(spec_wf_json, search_wf_json):
             step['input_connections']['lookup']['id'] = lookupstep['id']
 
 
-def remove_ensembl_steps(wf_json):
+def remove_annotated_steps(wf_json, annot_or_name):
+    stepfound = True
+    while stepfound:
+        stepfound = False
+        for step in wf_json['steps'].values():
+            annot = step['annotation']
+            stepname = annot[:annot.index('---')] if annot else step['name']
+            if annot_or_name in stepname:
+                remove_step_from_wf(step['id'], wf_json, remove_connections=True)
+                stepfound = True
+                break
+
+
+def remove_gene_steps(wf_json):
+    print('Removing Genecentric steps and inputs from workflow')
+    remove_annotated_steps(wf_json, 'gene table')
+
+
+def remove_biomart_symbol_steps(wf_json):
     print('Removing ENSEMBL steps and inputs from workflow')
     # remove biomart from PSM table input connections
     for step in wf_json['steps'].values():
@@ -410,31 +428,35 @@ def remove_ensembl_steps(wf_json):
                                                    'biomart map')
     remove_step_from_wf(mart_step_id, wf_json)
     # remove all boxes which say symbol_table in annotation
-    symbol_table = True
-    while symbol_table:
-        symbol_table = False
-        for step in wf_json['steps'].values():
-            annot = step['annotation']
-            stepname = annot[:annot.index('---')] if annot else step['name']
-            if 'symbol table' in stepname:
-                remove_step_from_wf(step['id'], wf_json)
-                symbol_table = True
-                break
+    remove_annotated_steps(wf_json, 'symbol table')
 
 
-def remove_step_from_wf(removestep_id, wf_json):
+def remove_step_from_wf(removestep_id, wf_json, remove_connections=False):
+    """Removes a step, subtracts one from all step IDs after it, including
+    input connections"""
     del(wf_json['steps'][str(removestep_id)])
     newsteps = {}
     for step in wf_json['steps'].values():
         if step['id'] > removestep_id:
             step['id'] -= 1
-        for connection in step['input_connections'].values():
+        removekeys = []
+        for conkey, connection in step['input_connections'].items():
             if type(connection) == list:
-                for multi_connection in connection:
+                keepsubkeys = []
+                for conix, multi_connection in enumerate(connection):
+                    if multi_connection['id'] != removestep_id:
+                        keepsubkeys.append(conix)
                     if multi_connection['id'] > removestep_id:
                         multi_connection['id'] -= 1
+                if remove_connections:
+                    connection = [connection[ix] for ix in keepsubkeys]
             elif connection['id'] > removestep_id:
                 connection['id'] -= 1
+            elif connection['id'] == removestep_id:
+                removekeys.append(conkey)
+        if remove_connections:
+            for ck in removekeys:
+                del(step['input_connections'][ck])
         newsteps[str(step['id'])] = step
     wf_json['steps'] = newsteps
 
