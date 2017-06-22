@@ -160,7 +160,6 @@ def assign_inputs_tools(inputstore):
         'platepatterns': ' '.join(params['strippatterns'])})
     params['MS-GF+'] = get_msgf_inputs(params)
     params['Create nested list'] = {'batchsize': params['ppoolsize']}
-    params['Get fraction numbers'] = {'code': params['fr_matcher']}
     params['FDR gene table'] = {}
     for toolid in ['Create gene table', 'Create protein table',
                    'Create symbol table', 'Create peptide table']:
@@ -177,14 +176,12 @@ def parse_special_inputs(inputstore, gi):
         sets = [x['object']['name'] for x in spectracollection['elements']]
         params['setnames'] = sets
         params['setpatterns'] = sets
-    if 'strips' in params:
+    if params['strips'] is not None:
         #'strips': [{'intercept': 3.5959, 'fr_width': 0.0174, 'name': '3-10'},
         #           {'intercept': 3.5478, 'fr_width': 0.0676}],
         #'strippatterns': ['IEF_37-49', 'IEF_3-10']}}
         params['strips'] = [galaxydata.strips[x] for x in params['strips']]
-        params['strippatterns'] = ['"{}"'.format(x) for x
-                                   in params['strippatterns']]
-    if 'fr_matcher' in params:
+    if params['fr_matcher'] is not None:
         params['Get fraction numbers'] = {
             'code': ('s/{}/\\1/;s/\#SpecFile/'
                      'Fractions/'.format(params['fr_matcher']))}
