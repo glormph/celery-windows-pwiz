@@ -39,6 +39,8 @@ def parse_commandline(inputstore):
     parser.add_argument('--setnames', dest='setnames', nargs='+')
     parser.add_argument('--setpatterns', dest='setpatterns', nargs='+')
     parser.add_argument('--isobtype', dest='multiplextype', default=None)
+    parser.add_argument('--phospho', dest='phospho', default=False,
+                        action='store_const', const=True)
     parser.add_argument('--instrument', dest='instrument', default=None)
     parser.add_argument('--mods', dest='modifications', nargs='+')
     parser.add_argument('--denominators', dest='denominators', nargs='+')
@@ -102,7 +104,13 @@ def get_massshift(isobtype):
 def get_msgf_inputs(params):
     inputs = {'common_variable_modifications': [],
               'common_fixed_modifications': []}
-    if params['multiplextype'] in ['tmt10plex', 'tmt6plex']:
+    if params['multiplextype'] is None and not params['phospho']:
+        print('No multiplex or phospho, using automatic protocol for MSGF')
+        protocol = '0'
+    elif params['multiplextype'] is None and params['phospho']:
+        print('phospho detected')
+        protocol = '1'
+    elif params['multiplextype'] in ['tmt10plex', 'tmt6plex']:
         print('TMT10/6plex detected')
         protocol = '4'
         inputs['common_fixed_modifications'] = [
@@ -114,12 +122,6 @@ def get_msgf_inputs(params):
     elif params['multiplextype'][:5] == 'itraq' and params['phospho']:
         print('iTRAQ phospho detected')
         protocol = '3'
-    elif params['phospho']:
-        print('phospho detected')
-        protocol = '1'
-    else:
-        print('No protocol detected, using automatic protocol for MSGF')
-        protocol = '0'
     inputs['advanced|protocol'] = protocol
     if params['instrument'] == 'qe':
         inputs['inst'] = '3'
