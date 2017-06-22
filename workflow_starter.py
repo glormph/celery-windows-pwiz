@@ -8,6 +8,10 @@ from tasks.galaxy import workflow_manage as wfmanage
 from tasks.galaxy import nonwf_tasks
 
 
+def get_workflows():
+    return galaxydata.workflows
+
+
 def initialize_datasets():
     """Fills inputstore with empty dict of datasets which are to be
     made by Galaxy"""
@@ -100,24 +104,6 @@ def get_library_dset(gi, lib_dset_name):
                 'galaxy_name': dsets[pick]['name']}
     return False
 
-def select_workflow():
-    print('--------------------')
-    workflows = wfmanage.get_workflows()
-    for num, wf in enumerate(workflows):
-        print(num, wf['name'])
-    while True:
-        pick = input('Which workflow has been run? ')
-        try:
-            pick = int(pick)
-        except ValueError:
-            print('Please enter number separated with a comma)')
-            continue
-        else:
-            break
-    return {'wf': workflows[pick],
-            'module_uuids': wfmanage.get_modules_for_workflow(
-                workflows[pick]['modules'])}
-
 
 def get_modules_and_tasks(inputstore):
     runchain = []
@@ -176,6 +162,49 @@ def check_workflow_mod_connectivity(workflows, inputstore, dry_run=False):
     else:
         print('Workflows ok')
     return connect_ok
+
+
+def check_workflow_inputs_ok(mod, mod_inputs, collected_inputs):
+    inputs_ok = True
+    for modinput in mod_inputs:
+        if modinput not in collected_inputs:
+            print('WARNING, workflow "{}" input "{}" not found in '
+                  'outputs from earlier workflow modules. Consider fixing '
+                  'before a run'.format(mod, modinput))
+            inputs_ok = False
+    return inputs_ok
+
+
+def get_workflow_params(wf_json):
+    """Should return step tool_id, name, composed_name"""
+    for step in wf_json['steps'].values():
+        try:
+            tool_param_inputs = step['tool_inputs'].items()
+        except AttributeError:
+            continue
+        dset_input_names = [x['name'] for x in step['inputs']]
+        for input_name, input_val in tool_param_inputs:
+            if input_name in dset_input_names:
+                continue
+            try:
+                input_val = json.loads(input_val)
+            except ValueError:
+                # no json obj, no runtime values
+                continue
+            if type(input_val) == dict:
+                if dict in [type(x) for x in input_val.values()]:
+                    # complex input with repeats/conditional
+                    for subname, subval in input_val.items():
+                        composed_name = '{}|{}'.format(input_name, subname)
+                        if is_runtime_param(subval, composed_name, step):
+                            yield {'tool_id': step['tool_id'],
+                                   'name': composed_name,
+                                   'storename': input_name}
+                else:
+                    # simple runtime value check and fill with inputstore value
+                    if is_runtime_param(input_val, input_name, step):
+                        yield {'tool_id': step['tool_id'],
+                               'name': input_name, 'storename': False}
 
 
 def get_searchname(inputstore):

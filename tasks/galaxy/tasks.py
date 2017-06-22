@@ -2,12 +2,9 @@ import os
 import json
 import re
 import subprocess
-from collections import OrderedDict
-from datetime import datetime
 from time import sleep
-from celery.result import AsyncResult
 
-from tasks import config, dbaccess
+from tasks import config
 from tasks.galaxy.util import get_galaxy_instance
 from tasks.galaxy import galaxydata
 from tasks.galaxy import workflow_manage as wfmanage
@@ -67,6 +64,7 @@ def local_link_file(self, inputstore, number):
 
 @app.task(queue=config.QUEUE_GALAXY_TOOLS, bind=True)
 def tmp_import_file_to_history(self, inputstore):
+    # FIXME DEPRECATE OR MAKE SURE INPUTSTORE GETS CORRECT FORMAT
     print('Importing {} to galaxy history {}'.format(inputstore['mzml'],
                                                      inputstore['history']))
     gi = get_galaxy_instance(inputstore)
@@ -77,17 +75,6 @@ def tmp_import_file_to_history(self, inputstore):
     inputstore['galaxy_dset'] = dset[0]['id']
     inputstore['galaxy_name'] = dset[0]['name']
     return inputstore
-
-
-@app.task(queue=config.QUEUE_GALAXY_TOOLS)
-def import_file_to_history(mzmlfile_id, mzmlfile, inputstore):
-    print('Importing {} to galaxy history {}'.format(mzmlfile,
-                                                     inputstore['history']))
-    gi = get_galaxy_instance(inputstore)
-    dset = gi.tools.upload_from_ftp(mzmlfile, inputstore['history'])['outputs']
-    print('File {} imported'.format(mzmlfile))
-    dbaccess.upload_file(mzmlfile_id, dset[0]['name'], dset[0]['id'])
-    return dset[0]['name'], dset[0]['id']
 
 
 @app.task(queue=config.QUEUE_GALAXY_TOOLS)
@@ -176,190 +163,9 @@ def collect_spectra(inputstore, gi):
     return inputstore
 
 
-@app.task(queue=config.QUEUE_GALAXY_TOOLS)
-def put_files_in_collection(dsets, inputstore):
-    task_ids = inputstore['g_import_celerytasks']
-    print('Waiting for {} files to be loaded in Galaxy'.format(len(task_ids)))
-    while False in [AsyncResult(x).ready() for x in task_ids]:
-        sleep(2)  # TODO change to 60
-    if True in [AsyncResult(x).failed() for x in task_ids]:
-        raise RuntimeError('Importing failed somewhere for history {}, '
-                           'please check'.format(inputstore['history']))
-    print('Collecting files')
-    gi = get_galaxy_instance(inputstore)
-    name_id_hdas = [x for x in
-                    dbaccess.get_name_id_hdas(inputstore['search_dbid'])]
-    coll_spec = {
-        'name': 'spectra', 'collection_type': 'list',
-        'element_identifiers': [{'name': name, 'id': g_id, 'src': 'hda'}
-                                for name, g_id in name_id_hdas]}
-    collection = gi.histories.create_dataset_collection(inputstore['history'],
-                                                        coll_spec)
-    inputstore['mzml_collection'] = collection['id']
-    dbaccess.store_collection(inputstore['search_dbid'], collection['id'],
-                              [x[1] for x in name_id_hdas])
-    return inputstore
-
-
-@app.task(queue=config.QUEUE_GALAXY_WORKFLOW, bind=True)
-def run_metafiles2pin(self, inputstore):
-    """Metafile2pin contains a repeat param which cannot be accessed
-    in the WF API and also not in the tool API (latter due to a suspected
-    bug."""
-    print('Running metafiles2pin')
-    gi = get_galaxy_instance(inputstore)
-    update_inputstore_from_history(gi, inputstore['datasets'],
-                                   ['msgf target', 'msgf decoy'],
-                                   inputstore['history'], 'metafiles2pin task')
-    tool_inputs = {'percopoolsize': inputstore['params']['ppoolsize']}
-    for count, pp_id in enumerate(inputstore['params']['perco_ids']):
-        param_name = 'percopoolids_{}|ppool_identifier'.format(count)
-        tool_inputs[param_name] = pp_id
-    td_meta = {}
-    for td in ['target', 'decoy']:
-        tool_inputs['searchresult'] = {
-            k: v for k, v in 
-            inputstore['datasets']['msgf {}'.format(td)].items()
-            if k != 'history'}
-        td_meta[td] = gi.tools.run_tool(
-            inputstore['history'], 'metafiles2pin_ts',
-            tool_inputs=tool_inputs)['output_collections'][0]['id']
-    for td in ['target', 'decoy']:
-        wait_for_dynamic_collection('metafiles2pin', gi, inputstore,
-                                    td_meta[td])
-        inputstore['datasets']['percometa {}'.format(td)].update({
-            'history': inputstore['history'], 'id': td_meta[td]})
-    return inputstore
-
-
-@app.task(queue=config.QUEUE_GALAXY_WORKFLOW, bind=True)
-def merge_percobatches_to_sets(self, inputstore):
-    """This tasks maps percobatches resulting from metafiles2pin and
-    percolator back to percolator sets."""
-    print('Running merge percolator step outside of galaxy workflow for {} in '
-          'history {}'.format(inputstore['searchname'], inputstore['history']))
-    gi = get_galaxy_instance(inputstore)
-    # get spectra collection, with elements to get names
-    specfiles = get_spectrafiles(gi, inputstore)
-    inputstore['percosetbatches'] = create_percolator_tasknr_batches(
-        specfiles, inputstore['params']['perco_ids'],
-        inputstore['params']['ppoolsize'])
-    # get split TD result collections
-    update_inputstore_from_history(gi, inputstore['datasets'],
-                                   ['perco batch target', 'perco batch decoy'],
-                                   inputstore['history'],
-                                   'merge percolator task')
-    perco_t_col = gi.histories.show_dataset_collection(
-        inputstore['datasets']['perco batch target']['history'],
-        inputstore['datasets']['perco batch target']['id'])
-    perco_d_col = gi.histories.show_dataset_collection(
-        inputstore['datasets']['perco batch decoy']['history'],
-        inputstore['datasets']['perco batch decoy']['id'])
-    # Merge target and decoy separately
-    for tdname, percotd in zip(['percolator pretarget', 'percolator predecoy'],
-                               [perco_t_col, perco_d_col]):
-        merged = []
-        for setname in inputstore['params']['perco_ids']:
-            # create collection of batches to run merge on
-            setinfo = inputstore['percosetbatches']['psets'][setname]
-            pbatches = [el for el in percotd['elements']]
-            coldesc = {'collection_type': 'list', 'name': setname,
-                       'element_identifiers': [{
-                           'id': pbatches[batchn]['object']['id'],
-                           'name': pbatches[batchn]['element_identifier'],
-                           'src': 'hda'} for batchn in setinfo['batches']]}
-            batchcol = gi.histories.create_dataset_collection(
-                inputstore['history'], coldesc)
-            # Run merge tool and append merged JSON dataset
-            merged.append({'id': gi.tools.run_tool(
-                inputstore['history'], 'percolator_merge',
-                tool_inputs={'fm|input': {'id': batchcol['id'],
-                                       'src': 'hdca'},
-                             'fm|flattenormerge': 'flatten'}
-                )['outputs'][0]['id'], 'src': 'hda', 'name': setname})
-        # Build collection of merged datasets
-        mergecoldesc = {'collection_type': 'list', 'name': tdname,
-                        'element_identifiers': merged}
-        mergecol = gi.histories.create_dataset_collection(
-            inputstore['history'], mergecoldesc)
-        inputstore['datasets'][tdname] = {'src': 'hdca', 'id': mergecol['id'],
-                                          'history': inputstore['history']}
-    return inputstore
-
-
 def get_collection_contents(gi, history, collection_id):
     return gi.histories.show_dataset_collection(history,
                                                 collection_id)['elements']
-
-
-def get_spectrafiles(gi, inputstore):
-    spectra_col = get_collection_contents(
-        gi, inputstore['datasets']['spectra']['history'], 
-        inputstore['datasets']['spectra']['id'])
-    specfiles = [x['element_identifier'] for x in spectra_col]
-    return specfiles
-
-
-@app.task(queue=config.QUEUE_GALAXY_WORKFLOW, bind=True)
-def run_pout2mzid_on_sets(self, inputstore):
-    """Runs pout2mzid for each percolator set outside of workflow to avoid
-    having to do the perco-set /mzIdentML file correlation in a galaxy tool"""
-    print('Running pout2mzid step outside of galaxy workflow for {} in '
-          'history {}'.format(inputstore['searchname'], inputstore['history']))
-    gi = get_galaxy_instance(inputstore)
-    percolabels = ['perco recalc target', 'perco recalc decoy']
-    update_inputstore_from_history(gi, inputstore['datasets'], percolabels,
-                                   inputstore['history'], 'pout2mzid task')
-    percocols = [inputstore['datasets'][x] for x in percolabels]
-    specfiles = get_spectrafiles(gi, inputstore)
-    specfileppools = [get_filename_index_with_identifier(specfiles, p_id)
-                      for p_id in inputstore['params']['perco_ids']]
-    prepoutcols = {'target': [], 'decoy': []}
-    for td, perco_col in zip(['target', 'decoy'], percocols):
-        allmzidfiles = [x for x in get_collection_contents(
-            gi, inputstore['datasets']['msgf {}'.format(td)]['history'],
-            inputstore['datasets']['msgf {}'.format(td)]['id'])]
-        allpercofiles = [x for x in get_collection_contents(
-            gi, perco_col['history'], perco_col['id'])]
-        for count, (percout, ppool_index) in enumerate(zip(allpercofiles,
-                                                           specfileppools)):
-            mzids = [allmzidfiles[ix] for ix in ppool_index]
-            coldesc = {'name': 'msgf+ mzIdentML {} ppool {}'.format(td, count),
-                       'collection_type': 'list', 'element_identifiers':
-                       [{'id': mzds['object']['id'],
-                         'name': mzds['element_identifier'],
-                         'src': 'hda'} for mzds in mzids]}
-            mzidcol = gi.histories.create_dataset_collection(
-                inputstore['history'], coldesc)
-            poutinputs = {'percout': {'src': 'hda',
-                                      'id': percout['object']['id']},
-                          'mzid|multifile': True,
-                          'mzid|mzids': {'src': 'hdca', 'id': mzidcol['id']},
-                          'targetdecoy': td, 'schemaskip': True}
-            prepoutcols[td].append(gi.tools.run_tool(inputstore['history'], 'pout2mzid',
-                                 poutinputs)['output_collections'][0]['id'])
-    # repackage pout2mzid set collections into one collection for all sets
-    # for both target and decoy
-    print('Repackaging pout2mzid collections for search {} in history '
-          '{}'.format(inputstore['searchname'], inputstore['history']))
-    for td in ['target', 'decoy']:
-        poutcol_els = []
-        for poutcolid in prepoutcols[td]:
-            wait_for_dynamic_collection('pout2mzid', gi, inputstore, poutcolid)
-            poutcol_els.extend([{'src': 'hda', 'id': el['object']['id'],
-                                 'name': el['element_identifier']}
-                                for el in gi.histories.show_dataset_collection(
-                                    inputstore['history'],
-                                    poutcolid)['elements']])
-        poutcolname = 'pout2mzid {}'.format(td)
-        poutcol = gi.histories.create_dataset_collection(
-            inputstore['history'], {'name': poutcolname,
-                                    'collection_type': 'list',
-                                    'element_identifiers': poutcol_els})
-        inputstore['datasets'][poutcolname].update({'id': poutcol['id'],
-                                                    'history':
-                                                    inputstore['history']})
-    return inputstore
 
 
 def get_filename_index_with_identifier(infiles, pool_id):
@@ -372,62 +178,6 @@ def get_filename_index_with_identifier(infiles, pool_id):
     return pool_indices
 
 
-def create_percolator_tasknr_batches(filenames, ppool_ids, max_batchsize):
-    """For an amount of input files, pool identifiers and a max batch size,
-    return batches of files that can be percolated together"""
-    if ppool_ids:
-        filegroups = OrderedDict([(p_id, get_filename_index_with_identifier(
-                                   filenames, p_id))
-                                  for p_id in ppool_ids])
-    else:
-        filegroups = {1: range(len(filenames))}
-    # FIXME fix for when no ppool-ids
-    batch, count = [], 0
-    batch_pset_info = {'specfiles': {}, 'psets': {}}
-    for setname, grouped_indices in filegroups.items():
-        batch_pset_info['psets'][setname] = {'batches': []}
-        batch_pset_info['specfiles'].update({filenames[ix]: setname
-                                             for ix in grouped_indices})
-        if len(grouped_indices) > int(max_batchsize):
-            batchsize = int(max_batchsize)
-        else:
-            batchsize = len(grouped_indices)
-        for index in grouped_indices:
-            batch.append(index)
-            if len(batch) == int(batchsize):
-                batch_pset_info['psets'][setname]['batches'].append(count)
-                batch = []
-                count += 1
-        if len(batch) > 0:
-            batch_pset_info['psets'][setname]['batches'].append(count)
-            batch = []
-            count += 1
-    return batch_pset_info
-
-
-@app.task(queue=config.QUEUE_GALAXY_WORKFLOW, bind=True)
-def reuse_history(self, inputstore, reuse_history_id):
-    input_labels = inputstore['wf']['rerun_rename_labels'].keys()
-    print('Checking reusable other history for datasets for '
-          'input steps {}'.format(input_labels))
-    # TODO launch download chain in this task on old history, so user will
-    # not have to wait for download before new search is run. Useful in case
-    # long slow downloads.
-    gi = get_galaxy_instance(inputstore)
-    try:
-        update_inputstore_from_history(gi, inputstore['datasets'],
-                                       input_labels, reuse_history_id,
-                                       'reuse_history')
-    except Exception as e:
-        self.retry(countdown=60, exc=e)
-    reuse_datasets = {}
-    for label, newlabel in inputstore['wf']['rerun_rename_labels'].items():
-        if newlabel:
-            reuse_datasets[newlabel] = inputstore['datasets'].pop(label)
-    inputstore['datasets'].update(reuse_datasets)
-    return inputstore
-
-
 @app.task(queue=config.QUEUE_GALAXY_TOOLS)
 def create_6rf_split_dbs(inputstore):
     print('Creating 6RF split DB')
@@ -437,7 +187,7 @@ def create_6rf_split_dbs(inputstore):
                                    inputstore['history'],
                                    'prep predpi peptable')
     peptable_col = gi.histories.show_dataset_collection(
-        dsets['peptable MS1 deltapi']['history'], 
+        dsets['peptable MS1 deltapi']['history'],
         dsets['peptable MS1 deltapi']['id'])
     peptable_ds = {x['element_identifier']: x['object']['id']
                    for x in peptable_col['elements']}
@@ -495,11 +245,6 @@ def get_prefracdb_name(setname, stripname):
     return '{}::{}'.format(setname, stripname)
 
 
-def get_json_workflow(inputstore):
-    # FIXME
-    return inputstore['wf_json']
-
-
 @app.task(queue=config.QUEUE_GALAXY_WORKFLOW_TEST, bind=True)
 def run_search_wf(self, inputstore, wf_id):
     print('Workflow start task: Preparing inputs for workflow '
@@ -519,36 +264,6 @@ def run_search_wf(self, inputstore, wf_id):
     print('Invoking workflow {} with id {}'.format(wf_json['name'], wf_id))
     try:
         gi.workflows.invoke_workflow(wf_id, inputs=mod_inputs,
-                                     history_id=inputstore['history'])
-    except Exception as e:
-        # Workflows are invoked so requests are fast, no significant
-        # risk for timeouts
-        print('Problem, retrying, error was {}'.format(e))
-        self.retry(countdown=60, exc=e)
-    print('Workflow invoked')
-    return inputstore
-
-
-@app.task(queue=config.QUEUE_GALAXY_WORKFLOW, bind=True)
-def run_workflow_module(self, inputstore, module_uuid):
-    print('Getting workflow module {}'.format(module_uuid))
-    gi = get_galaxy_instance(inputstore)
-    module = inputstore['g_modules'][module_uuid]
-    input_labels = get_input_labels(module)
-    try:
-        update_inputstore_from_history(gi, inputstore['datasets'],
-                                       input_labels,
-                                       inputstore['history'],
-                                       module['name'])
-    except:
-        self.retry(countdown=60)
-    mod_inputs = get_input_map(module, inputstore['datasets'])
-    mod_params = get_param_map(module, inputstore)
-    print('Invoking workflow {} with id {}'.format(module['name'],
-                                                   module['id']))
-    try:
-        gi.workflows.invoke_workflow(module['id'], inputs=mod_inputs,
-                                     params=mod_params,
                                      history_id=inputstore['history'])
     except Exception as e:
         # Workflows are invoked so requests are fast, no significant
@@ -634,7 +349,7 @@ def store_summary(self, inputstore):
         if 'id' in dset and dset['id'] is not None:
             summary['datasets'][name] = dset
             if dset['src'] != 'ld':
-                print('Dataset {} is not a library, collecting name'.format(name))
+                print('Dataset {} not a library, collecting name'.format(name))
                 gname = gi.datasets.show_dataset(dset['id'])['name']
                 summary['datasets'][name]['galaxy_name'] = gname
     with open(summaryfn, 'w') as fp:
@@ -660,37 +375,18 @@ def download_results(self, inputstore):
         self.retry(countdown=60, exc=e)
     for dset in inputstore['output_dsets'].values():
         if dset['download_url'][:4] != 'http':
-            dset['download_url'] = inputstore['galaxy_url'] + dset['download_url']
+            dset['download_url'] = '{}{}'.format(inputstore['galaxy_url'],
+                                                 dset['download_url'])
         dlcmd = ['curl', '-o', dset['download_dest'], dset['download_url']]
         print('running: {}'.format(dlcmd))
         try:
             subprocess.check_call(dlcmd)
         except BaseException as e:
-            print('Problem occurred downloading: {}'.format(e)) 
+            print('Problem occurred downloading: {}'.format(e))
             self.retry(countdown=60)
     print('Finished downloading results to disk for history '
           '{}'.format(inputstore['history']))
     return inputstore
-
-
-@app.task(queue=config.QUEUE_STORAGE)
-def write_report(inputstore):
-    print('Writing report file for history {}'.format(inputstore['history']))
-    report = {'name': inputstore['searchname'],
-              'date': datetime.now().strftime('%Y%m%d'),
-              'workflow': inputstore['wf']['name'],
-              'workflow_modules': inputstore['module_uuids'],
-              'galaxy history': inputstore['history'],
-              'input parameters': inputstore['params'],
-              'reused galaxy history': inputstore['rerun_his'],
-              'datasets': inputstore['datasets'],
-              }
-
-    reportfile = os.path.join(inputstore['outshare'],
-                              inputstore['searchname'].replace(' ', '_'),
-                              'report.json')
-    with open(reportfile, 'w') as fp:
-        json.dump(report, fp, indent=2)
 
 
 def check_outputs_workflow_ok(gi, inputstore):
@@ -713,18 +409,6 @@ def check_outputs_workflow_ok(gi, inputstore):
     return True
 
 
-def wait_for_dynamic_collection(toolname, gi, inputstore, col_id):
-    print('Waiting for {} to complete for search {} in history '
-          '{}'.format(toolname, inputstore['searchname'],
-                      inputstore['history']))
-    while True:
-        collection = gi.histories.show_dataset_collection(
-            inputstore['history'], col_id)
-        if collection['populated'] and collection['populated_state'] == 'ok':
-            break
-        sleep(10)
-
-
 def check_dset_success(gi, dset_id):
         dset_info = gi.datasets.show_dataset(dset_id)
         if dset_info['state'] == 'ok' and not dset_info['deleted']:
@@ -741,13 +425,6 @@ def check_dset_success(gi, dset_id):
         else:
             print('Dataset {} not ready yet'.format(dset_id))
         return True
-
-
-def get_input_labels(wf):
-    names = []
-    for wfinput in wf['inputs'].values():
-        names.append(wfinput['label'])
-    return names
 
 
 def check_inputs_ready(datasets, inputnames, modname):
@@ -798,21 +475,35 @@ def update_inputstore_from_history(gi, datasets, dsetnames, history_id,
 
 
 def get_input_labels_json(wf):
-    return [x[0] for x in wfmanage.get_workflow_inputs_json(wf)]
+    return [x[0] for x in get_workflow_inputs_json(wf)]
+
+
+def get_workflow_inputs_json(wfjson):
+    """From workflow JSON returns (name, uuid) of the input steps"""
+    for step in wfjson['steps'].values():
+        if (step['tool_id'] is None and step['name'] in
+                ['Input dataset', 'Input dataset collection']):
+            yield(json.loads(step['tool_state'])['name'], step['uuid'])
+
+
+def get_workflow_inputs(wfmod):
+    for modinput in wfmod['inputs'].values():
+        yield (modinput['label'], modinput['uuid'])
 
 
 def get_input_map_from_json(module, inputstore):
     inputmap = {}
-    for label, uuid in wfmanage.get_workflow_inputs_json(module):
+    for label, uuid in get_workflow_inputs_json(module):
         inputmap[uuid] = {
             'id': inputstore[label]['id'],
             'src': inputstore[label]['src'],
         }
     return inputmap
+
 
 def get_input_map(module, inputstore):
     inputmap = {}
-    for label, uuid in wfmanage.get_workflow_inputs(module):
+    for label, uuid in get_workflow_inputs(module):
         inputmap[uuid] = {
             'id': inputstore[label]['id'],
             'src': inputstore[label]['src'],
@@ -820,43 +511,10 @@ def get_input_map(module, inputstore):
     return inputmap
 
 
-def get_param_map(module, inputstore):
-    parammap = {}
-    for param in wfmanage.get_workflow_params(module):
-        fill_runtime_param(parammap, inputstore, param['name'],
-                           param['tool_id'], param['storename'])
-    return parammap
-#    for modstep in module['steps'].values():
-#        try:
-#            tool_param_inputs = modstep['tool_inputs'].items()
-#        except AttributeError:
-#            continue
-#        for input_name, input_val in tool_param_inputs:
-#            try:
-#                input_val = json.loads(input_val)
-#            except ValueError:
-#                # no json obj, no runtime values
-#                continue
-#            if type(input_val) == dict:
-#                check_and_fill_runtime_param(input_val, input_name, modstep,
-#                                             parammap, inputstore)
-#    return parammap
-#
-#
-#def check_and_fill_runtime_param(input_val, name, modstep, parammap,
-#                                 inputstore):
-#    if dict in [type(x) for x in input_val.values()]:
-#        # complex input with repeats/conditional
-#        for subname, subval in input_val.items():
-#            composed_name = '{}|{}'.format(name, subname)
-#            if wfmanage.is_runtime_param(subval, composed_name, modstep):
-#                fill_runtime_param(parammap, inputstore, composed_name,
-#                                   modstep, name)
-#    else:
-#        # simple runtime value check and fill with inputstore value
-#        if wfmanage.is_runtime_param(input_val, name, modstep):
-#            fill_runtime_param(parammap, inputstore, name, modstep)
-#
+def get_workflow_inputs(wfmod):
+    for modinput in wfmod['inputs'].values():
+        yield (modinput['label'], modinput['uuid'])
+
 
 def get_collection_id_in_his(his_contents, dset_name, named_dset_id, gi,
                              his_index=False, direction=False):
@@ -883,80 +541,11 @@ def get_collection_id_in_his(his_contents, dset_name, named_dset_id, gi,
     return None
 
 
-def fill_runtime_param(parammap, inputstore, name, tool_id, storename=False):
-    if not storename:
-        storename = name
-    try:
-        paramval = inputstore['params'][storename]
-    except KeyError:
-        print('WARNING! no input param found for name {}'.format(name))
-    else:
-        if tool_id not in parammap:
-            parammap[tool_id] = {}
-        parammap[tool_id].update({name: paramval})
-
-
 @app.task(queue=config.QUEUE_GALAXY_WORKFLOW, bind=True)
 def check_dsets_ok(self, inputstore):
     # FIXME have to check datasets are ok, no history clean bc it doesnt exist
     # yet
     print('Not currently checking dsets are ok... please implement me!')
-    return inputstore
-
-
-def create_history(inputstore, gi):
-    print('Creating new history for: {}'.format(inputstore['searchname']))
-    history = gi.histories.create_history(name=inputstore['searchname'])
-    inputstore['history'] = history['id']
-
-
-@app.task(queue=config.QUEUE_GALAXY_WORKFLOW, bind=True)
-def tmp_prepare_run(self, inputstore):
-    gi = get_galaxy_instance(inputstore)
-    wfmanage.check_modules(gi, inputstore['module_uuids'])
-    return inputstore
-
-
-@app.task(queue=config.QUEUE_GALAXY_WORKFLOW, bind=True)
-def tmp_create_history(self, inputstore):
-    gi = get_galaxy_instance(inputstore)
-    try:
-        create_history(inputstore, gi)
-    except:  # FIXME correct Galaxy error here
-        self.retry(countdown=60)
-    return inputstore
-
-
-@app.task(queue=config.QUEUE_GALAXY_WORKFLOW, bind=True)
-def prepare_run(self, inputstore, is_workflow=True):
-    inputstore['search_dbid'] = dbaccess.init_search(
-        inputstore['searchname'], inputstore['wf_id'], inputstore['mzml_ids'])
-    gi = get_galaxy_instance(inputstore)
-    wfmanage.check_modules(gi, inputstore['module_uuids'])
-    return inputstore
-
-
-@app.task(queue=config.QUEUE_GALAXY_WORKFLOW, bind=True)
-def run_mslookup_spectra(self, inputstore):
-    """Runs mslookup spectra. Not in normal WF
-    because needs repeat param setnames passed to them, not yet possible
-    to call on WF API"""
-    gi = get_galaxy_instance(inputstore) 
-    set_inputs = {'spectra': {'src': 'hdca',
-                              'id': inputstore['datasets']['spectra']['id']}}
-    for count, (set_id, set_name) in enumerate(
-            zip(inputstore['params']['setpatterns'],
-                inputstore['params']['setnames'])):
-        set_inputs['pools_{}|set_identifier'.format(count)] = set_id
-        set_inputs['pools_{}|set_name'.format(count)] = set_name
-    mslookuptool = gi.tools.get_tools(tool_id='mslookup_spectra')[0]
-    print('Running lookup spectra tool')
-    speclookup = gi.tools.run_tool(inputstore['history'], mslookuptool['id'],
-                                   tool_inputs=set_inputs)['outputs'][0]
-    gi.histories.update_dataset(speclookup['history_id'], speclookup['id'],
-                                name='spectra lookup')
-    inputstore['datasets']['spectra lookup'] = {
-        'src': 'hda', 'id': speclookup['id'], 'history': inputstore['history']}
     return inputstore
 
 
