@@ -614,10 +614,13 @@ def cleanup(inputstore):
 def store_summary(self, inputstore):
     """Stores workflow JSON files, and other dataset choices in
     a report file"""
+    print('Storing summary for search {}'.format(inputstore['outdir']))
     gi = get_galaxy_instance(inputstore)
     outpath_full = os.path.join(config.STORAGESHARE,
                                 '{}_results'.format(inputstore['user']),
                                 inputstore['outdir'])
+    if not os.path.exists(outpath_full) or not os.path.isdir(outpath_full):
+        os.makedirs(outpath_full)
     for wf_j in inputstore['wf']['uploaded'].values():
         wfname = 'workflow_{}'.format(wf_j['name'])
         with open(os.path.join(outpath_full, wfname), 'w') as fp:
@@ -627,13 +630,15 @@ def store_summary(self, inputstore):
     summary = {'datasets': {}, 'params': inputstore['params'],
                'job_results': []}
     for name, dset in inputstore['datasets'].items():
-        if dset['id'] is not None:
+        if 'id' in dset and dset['id'] is not None:
             summary['datasets'][name] = dset
             if dset['src'] != 'ld':
-                gname = gi.datasets.show_dataset(ds['id'])['name']
+                print('Dataset {} is not a library, collecting name'.format(name))
+                gname = gi.datasets.show_dataset(dset['id'])['name']
                 summary['datasets'][name]['galaxy_name'] = gname
     with open(summaryfn, 'w') as fp:
         json.dump(summary, fp)
+    print('Summary stored')
 
 
 @app.task(queue=config.QUEUE_STORAGE, bind=True)
@@ -654,8 +659,6 @@ def download_results(self, inputstore):
         self.retry(countdown=60, exc=e)
     for dset in inputstore['output_dsets'].values():
         dirname = os.path.dirname(dset['download_dest'])
-        if not os.path.exists(dirname) or not os.path.isdir(dirname):
-            os.makedirs(dirname)
         try:
             gi.datasets.download_dataset(dset['download_id'],
                                          file_path=dset['download_dest'],
