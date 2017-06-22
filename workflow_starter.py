@@ -360,9 +360,11 @@ def connect_specquant_workflow(spec_wf_json, search_wf_json):
         search_wf_json['steps'][str(step['id'])] = step
         if step['name'] == 'Create lookup table with quant data':
             lookupstep = step
-    # Connect to PSM table
+    # Connect to PSM table and QC
     for step in search_wf_json['steps'].values():
         if step['name'] == 'Process PSM table':
+            step['input_connections']['lookup']['id'] = lookupstep['id']
+        elif step['name'] == 'msstitch QC':
             step['input_connections']['lookup']['id'] = lookupstep['id']
 
 

@@ -152,6 +152,12 @@ def assign_inputs_tools(inputstore):
         params['IsobaricAnalyzer'] = {'param_extraction_reporter_mass_shift':
                                       get_massshift(params['multiplextype']),
                                       'param_type': params['multiplextype']}
+        params['msstitch QC'] = {'isobaric': 'true'}
+    else:
+        params['msstitch QC'] = {'isobaric': 'false'}
+    params['msstitch QC'].update({
+        'setnames': ' '.join(params['setnames']),
+        'platepatterns': ' '.join(params['strippatterns'])})
     params['MS-GF+'] = get_msgf_inputs(params)
     params['Create nested list'] = {'batchsize': params['ppoolsize']}
     params['Get fraction numbers'] = {'code': params['fr_matcher']}
