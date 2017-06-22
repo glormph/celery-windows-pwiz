@@ -1,6 +1,7 @@
 import os
 import json
 import re
+import subprocess
 from collections import OrderedDict
 from datetime import datetime
 from time import sleep
@@ -658,11 +659,14 @@ def download_results(self, inputstore):
               'Problem message:', e)
         self.retry(countdown=60, exc=e)
     for dset in inputstore['output_dsets'].values():
+        if dset['download_url'][:4] != 'http':
+            dset['download_url'] = inputstore['galaxy_url'] + dset['download_url']
+        dlcmd = ['curl', '-o', dset['download_dest'], dset['download_url']]
+        print('running: {}'.format(dlcmd))
         try:
-            gi.datasets.download_dataset(dset['download_id'],
-                                         file_path=dset['download_dest'],
-                                         use_default_filename=False)
-        except:
+            subprocess.check_call(dlcmd)
+        except BaseException as e:
+            print('Problem occurred downloading: {}'.format(e)) 
             self.retry(countdown=60)
     print('Finished downloading results to disk for history '
           '{}'.format(inputstore['history']))
@@ -700,11 +704,12 @@ def check_outputs_workflow_ok(gi, inputstore):
         download_id = dset['id']
         print('Checking dset success for {} {}'.format(download_id, name))
         dset_success = check_dset_success(gi, download_id)
-        if dset_success == 'ready':
-            dset['download_id'] = download_id
-        elif not dset_success:
+        if not dset_success:
             # Workflow crashed or user intervened, abort downloading
             return False
+        elif type(dset_success) == str:
+            dset['download_id'] = download_id
+            dset['download_url'] = dset_success
     return True
 
 
@@ -724,7 +729,7 @@ def check_dset_success(gi, dset_id):
         dset_info = gi.datasets.show_dataset(dset_id)
         if dset_info['state'] == 'ok' and not dset_info['deleted']:
             print('Dataset {} ready'.format(dset_id))
-            return 'ready'
+            return dset_info['download_url']
         elif dset_info['state'] == 'error' or dset_info['deleted']:
             # Workflow crashed or user intervened, abort downloading
             print('WARNING! Dataset {}: {} state is '
