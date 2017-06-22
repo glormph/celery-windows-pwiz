@@ -508,11 +508,17 @@ def new_run_workflow(inputstore, gi):
     workflow JSON, mend and fill it and create a celery task for it.
     It then queues tasks to celery"""
     timest = datetime.strftime(datetime.now(), '%Y%m%d_%H.%M')
-    # wf passed is {'version': x, 'mods': [(name, uuid), (name, uuid)]
     inputstore['searchtype'] = inputstore['wf']['searchtype']
     inputstore['searchname'] = get_searchname(inputstore)
-    runchain = [tasks.tmp_create_history.s(inputstore),
-                tasks.check_dsets_ok.s()]
+    inputstore['outdir'] = '{}_{}'.format(
+        inputstore['searchname'].replace(' ', '_'), timest)
+    inputstore['history'] = gi.histories.create_history(
+        name=inputstore['searchname'])['id']
+    inputstore['source_history'] = gi.histories.create_history(
+        name='{}_source'.format(inputstore['searchname']))['id']
+    runchain = [tasks.storage_copy_file.s(inputstore, 0)]
+    runchain.extend([tasks.storage_copy_file.s(ix) for ix in
+                     range(1, len(inputstore['raw']))])
     inputstore['wf']['uploaded'] = {}
     for module in inputstore['wf']['modules']:
         if module[0][0] == '@':
