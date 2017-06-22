@@ -73,10 +73,6 @@ def parse_commandline(inputstore):
         parsename = name.replace(' ', '_')
         if hasattr(args, parsename) and getattr(args, parsename) is not None:
             inputstore['datasets'][name]['id'] = getattr(args, parsename)
-    for name in wfstarter.get_other_names_inputstore():
-        parsename = name.replace(' ', '_')
-        if hasattr(args, parsename) and getattr(args, parsename) is not None:
-            inputstore['datasets'][name] = getattr(args, parsename)
     if args.filesassets and (args.setnames is not None or
                              args.setpatterns is not None):
         print('Conflicting input, --files-as-sets has been passed but '
@@ -84,12 +80,15 @@ def parse_commandline(inputstore):
         sys.exit(1)
     for param in ['setnames', 'setpatterns', 'multiplextype', 'genefield',
                   'perco_ids', 'ppoolsize', 'fastadelim', 'filesassets',
-                  'modifications', 'instrument', 'fr_matcher',
+                  'modifications', 'instrument', 'fr_matcher', 'phospho',
                   'strips', 'strippatterns', 'sort_specfiles']:
-        if getattr(args, param) is not None:
-            inputstore['params'][param] = getattr(args, param)
+        inputstore['params'][param] = getattr(args, param)
     if args.denominators is not None:
         inputstore['params']['denominators'] = ' '.join(args.denominators)
+    if args.sourcedirs is not None:
+        inputstore['raw'] = get_mzmls_from_dirs(args.sourcedirs)
+    elif args.sourcefiles is not None:
+        inputstore['raw'] = get_mzmls_from_files(args.sourcefiles)
     inputstore['base_searchname'] = args.searchname
     inputstore['wf_num'] = args.analysisnr
     inputstore['rerun_his'] = args.reuse_history
