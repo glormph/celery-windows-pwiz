@@ -10,7 +10,7 @@ from tasks.galaxy import galaxydata
 from celeryapp import app
 
 
-@app.task(queue=config.QUEUE_GALAXY_TOOLS_TEST, bind=True)
+@app.task(queue=config.QUEUE_GALAXY_TOOLS, bind=True)
 def storage_copy_file(self, inputstore, number):
     """Inputstore will contain one raw file, and a galaxy history.
     Raw file will have a file_id which can be read by the DB"""
@@ -40,7 +40,7 @@ def storage_copy_file(self, inputstore, number):
         self.retry(exc=errormsg)
 
 
-@app.task(queue=config.QUEUE_GALAXY_TOOLS_TEST, bind=True)
+@app.task(queue=config.QUEUE_GALAXY_TOOLS, bind=True)
 def local_link_file(self, inputstore, number):
     """Inputstore will contain one raw file, and a galaxy history.
     Raw file will have a file_id which can be read by the DB"""
@@ -244,7 +244,7 @@ def get_prefracdb_name(setname, stripname):
     return '{}::{}'.format(setname, stripname)
 
 
-@app.task(queue=config.QUEUE_GALAXY_WORKFLOW_TEST, bind=True)
+@app.task(queue=config.QUEUE_GALAXY_WORKFLOW, bind=True)
 def run_search_wf(self, inputstore, wf_id):
     print('Workflow start task: Preparing inputs for workflow '
           'module {}'.format(wf_id))
@@ -325,7 +325,7 @@ def cleanup(inputstore):
     # another history
 
 
-@app.task(queue=config.QUEUE_STORAGE_TEST, bind=True)
+@app.task(queue=config.QUEUE_STORAGE, bind=True)
 def store_summary(self, inputstore):
     """Stores workflow JSON files, and other dataset choices in
     a report file"""
