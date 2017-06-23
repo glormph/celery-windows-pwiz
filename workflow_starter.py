@@ -32,8 +32,8 @@ def get_collection_names_inputstore():
 def check_required_inputs(inputstore, gi):
     # FIXME this is a new method, untested
     """Input checking. In UI we just demand inputs on the spot by reading
-    from the wf. Then we need to also specify the optional ones, but this
-    can be a start"""
+    from the wf spec in the galaxydata module.
+    Then we need to also specify the optional ones, but this can be a start"""
     input_error = False
     # Library inputs are not checked because they are asked for
     for in_dset in inputstore['datasets']:
@@ -55,7 +55,7 @@ def check_required_inputs(inputstore, gi):
     return inputstore
 
 
-def prep_libdsets(inputstore, gi):
+def get_libdsets(inputstore, gi):
     # FIXME this is a CLI thing
     all_picked_libdsets = []
     for required_libdset in inputstore['wf']['lib_inputs']:
@@ -214,7 +214,7 @@ def get_searchname(inputstore):
 def add_repeats_to_workflow_json(inputstore, wf_json):
     """Takes as input wf_json the thing the output from
     gi.workflows.export_workflow_json"""
-    print('Updating set names and connecting loose step (percolator-in)')
+    print('Updating set names and other repeats')
     params = inputstore['params']
     strip_list = json.dumps([{'__index__': ix, 'intercept': strip['intercept'],
                               'fr_width': strip['fr_width'],
@@ -253,6 +253,7 @@ def add_repeats_to_workflow_json(inputstore, wf_json):
 
 
 def connect_percolator_in_steps(wf_json, percin_input_stepids):
+    print('Connecting loose step (percolator-in)...')
     # connect percolator in step
     for step in wf_json['steps'].values():
         if (step['tool_id'] is not None and
@@ -303,10 +304,10 @@ def fill_runtime_params(step, params):
                         try:
                             input_val[subname] = params[stepname][composed_name]
                         except:
-                            print('WARNING, RuntimeValue for tool {}, param {} '
-                                  'expected, but nothing passed (possibly is an '
-                                  'unneeded dataset though).'.format(stepname,
-                                                                     composed_name))
+                            print('WARNING, RuntimeValue for tool {}, param '
+                                  '{} expected, but nothing passed (possibly '
+                                  'is an unneeded dataset '
+                                  'though).'.format(stepname, composed_name))
                 tool_param_inputs[input_name] = json.dumps(input_val)
             else:
                 if is_runtime_param(input_val, input_name, step):
@@ -323,9 +324,9 @@ def fill_runtime_params(step, params):
 
 def get_spectraquant_wf(inputstore):
     if 'IsobaricAnalyzer' in inputstore['params']:
-        wf_fn = 'json_workflows/spectra_quant_isobaric.json'
+        wf_fn = 'json_workflows/spectra_quant_isobaric_v0.2.json'
     else:
-        wf_fn = 'json_workflows/spectra_quant_labelfree.json'
+        wf_fn = 'json_workflows/spectra_quant_labelfree_v0.2.json'
     with open(wf_fn) as fp:
         return json.load(fp)
 
@@ -523,7 +524,7 @@ def is_runtime_param(val, name, step):
         return False
 
 
-def new_run_workflow(inputstore, gi):
+def run_workflow(inputstore, gi):
     """Passed a workflow in inputstore, this function will create a runchain
     of tasks for celery. Will either use the existing celery task or fetch
     workflow JSON, mend and fill it and create a celery task for it.
@@ -547,79 +548,37 @@ def new_run_workflow(inputstore, gi):
         else:
             modname, version, modtype = module[0], module[1], module[2]
             raw_json = get_versioned_module(modname, version)
-            if (modtype == 'proteingenes' and
-                    inputstore['datasets']['quant lookup']['id'] is None):
-                specquant_wfjson = get_spectraquant_wf(inputstore)
-                connect_specquant_workflow(specquant_wfjson, raw_json)
-            wf_json = add_repeats_to_workflow_json(inputstore, raw_json)
-            if (modtype == 'proteingenes' and
-                    inputstore['wf']['dbtype'] != 'ensembl'):
-                remove_ensembl_steps(wf_json)
-            if inputstore['wf']['quanttype'] == 'labelfree':
-                if modtype == 'peptides noncentric':
-                    remove_isobaric_from_peptide_centric(wf_json)
-                if modtype == 'proteingenes':
-                    remove_isobaric_from_protein_centric(wf_json)
-            print('Filling in runtime values...')
-            for step in wf_json['steps'].values():
-                fill_runtime_params(step, inputstore['params'])
-            print('Uploading workflow...')
-            wf_json['name'] = '{}_{}'.format(inputstore['searchname'], timest)
-            uploaded = gi.workflows.import_workflow_json(wf_json)
-            inputstore['wf']['uploaded'][uploaded['id']] = wf_json
-            runchain.append(tasks.run_search_wf.s(uploaded['id']))
-    runchain.extend(tasks.get_download_task_chain())
-    res = chain(*runchain)
-    res.delay()
+            inputstore, g_id = finalize_galaxy_workflow(raw_json, modtype,
+                                                        inputstore, timest, gi)
+            runchain.append(tasks.run_search_wf.s(g_id))
+    runchain.append(tasks.download_results.s())
+    #res = chain(*runchain)
+    #res.delay()
+    #tasks.store_summary.delay(inputstore)
 
 
-def run_workflow(inputstore, gi, existing_spectra=False):
-    """Runs a wf as specified in inputstore var"""
-    # ###### NEW PLAN
-    # get wfjsons from VC place so you can pick a version
-    # mend repeats and connections
-    # fill in runtime params
-    # upload
-    # run it
-    #
-    # 6RF has some extras, need to create a DB in advance
-    # cannot easily be run as ONE wf, so use the old strategy of connecting
-    # but still do wf uploads first
-    #
-    ########
-    inputstore['searchtype'] = inputstore['wf']['searchtype']
-    inputstore['searchname'] = get_searchname(inputstore)
-    if (inputstore['run'] == 1 and inputstore['rerun_his'] is None):
-        # runs a single workflow composed of some modules
-        inputstore['module_uuids'] = wfmanage.get_modules_for_workflow(
-            inputstore['wf']['modules'])
-        inputstore['g_modules'] = wfmanage.check_modules(
-            gi, inputstore['module_uuids'])
-        if inputstore['datasets']['spectra']['id'] is None:
-            runchain = [tasks.tmp_create_history.s(inputstore),
-                        tasks.check_dsets_ok.s(), tasks.tmp_prepare_run.s()]
-        else:
-            runchain = [tasks.check_dsets_ok.s(inputstore),
-                        tasks.tmp_prepare_run.s()]
-        runchain.extend(get_modules_and_tasks(inputstore))
-        runchain.extend(tasks.get_download_task_chain())
-    elif inputstore['run'] and inputstore['rerun_his']:
-        # runs one workflow with a history to reuse from
-        inputstore['module_uuids'] = wfmanage.get_modules_for_workflow(
-            inputstore['wf']['modules'])
-        inputstore['g_modules'] = wfmanage.check_modules(
-            gi, inputstore['module_uuids'])
-        runchain = [tasks.tmp_create_history.s(inputstore),
-                    tasks.reuse_history.s(inputstore['rerun_his']),
-                    tasks.check_dsets_ok.s(),
-                    ]
-        runchain.extend(get_modules_and_tasks(inputstore))
-        runchain.extend(tasks.get_download_task_chain())
-    else:
-        print('Not quite clear what you are trying to do here, '
-              'would you like to --show workflows, run a vardb, or a normal'
-              ' search?')
-        sys.exit(1)
-    res = chain(*runchain)
-    res.delay()
-    tasks.store_summary.delay(inputstore)
+def finalize_galaxy_workflow(raw_json, modtype, inputstore, timestamp, gi):
+    if (modtype == 'proteingenes' and
+            inputstore['datasets']['quant lookup']['id'] is None):
+        specquant_wfjson = get_spectraquant_wf(inputstore)
+        connect_specquant_workflow(specquant_wfjson, raw_json)
+    wf_json = add_repeats_to_workflow_json(inputstore, raw_json)
+    if modtype in ['proteingenes', 'proteins']:
+        remove_biomart_symbol_steps(wf_json)
+    if modtype == 'proteins':
+        remove_gene_steps(wf_json)
+    if inputstore['wf']['quanttype'] == 'labelfree':
+        if modtype == 'peptides noncentric':
+            remove_isobaric_from_peptide_centric(wf_json)
+        if modtype in ['proteingenes', 'proteins']:
+            remove_isobaric_from_protein_centric(wf_json)
+    print('Filling in runtime values...')
+    for step in wf_json['steps'].values():
+        fill_runtime_params(step, inputstore['params'])
+    print('Uploading workflow...')
+    wf_json['name'] = '{}_{}'.format(inputstore['searchname'], timestamp)
+#            for x,y in wf_json.items():
+#                print(x, y)
+    uploaded = gi.workflows.import_workflow_json(wf_json)
+    inputstore['wf']['uploaded'][uploaded['id']] = wf_json
+    return inputstore, uploaded['id']
