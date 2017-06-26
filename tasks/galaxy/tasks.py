@@ -316,13 +316,11 @@ def wait_for_completion(inputstore, gi):
         raise RuntimeError('Output datasets are in error or deleted state!')
 
 
-@app.task(queue=config.QUEUE_GALAXY_WORKFLOW)
 def cleanup(inputstore):
-    #gi = get_galaxy_instance(inputstore)
-    # TODO implement
-    pass
-    # removes analysis history, mzMLs will be left on disk bc they will be in
-    # another history
+    gi = get_galaxy_instance(inputstore)
+    gi.histories.delete_history(inputstore['history'], purge=True)
+    if not inputstore['keep_source']:
+        gi.histories.delete_history(inputstore['source_history'], purge=True)
 
 
 @app.task(queue=config.QUEUE_STORAGE, bind=True)
@@ -384,7 +382,10 @@ def download_results(self, inputstore):
             print('Problem occurred downloading: {}'.format(e))
             self.retry(countdown=60)
     print('Finished downloading results to disk for history '
-          '{}'.format(inputstore['history']))
+          '{}. Wrapping up stdout and erasing history and '
+          'source history'.format(inputstore['history']))
+    write_stdouts(inputstore, outpath_full)
+    cleanup(inputstore)
     return inputstore
 
 
