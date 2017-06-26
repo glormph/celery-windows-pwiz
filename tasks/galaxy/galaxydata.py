@@ -5,11 +5,10 @@ workflows = [
     # careful and do a dry run so you will see WARNINGs when not filling in
     # params (and meaningless warnings for eg martmap in varDB search)
     {
-        'name': 'New test IPG, ENSEMBL', 'modules': [
-            ('base_search', '0.1', 'proteingenes'),
+        'name': 'IPG, ENSEMBL', 'modules': [
+            ('base_search', '0.1', 'proteingenessymbols'),
         ],
         'searchtype': 'standard',
-        'dbtype': 'ensembl',
         'quanttype': 'isobaric',
         'required_params': ['multiplextype', 'denominators',
                             'instrument', 'modifications',
@@ -22,17 +21,12 @@ workflows = [
         'lib_inputs': ['target db', 'decoy db', 'biomart map',
                        'knownpep predpi tabular'],
         'other_inputs': ['strips'],
-        'outputs': ['pout2mzid target tar', 'PSM table target',
-                    'peptide table', 'protein table', 'gene table',
-                    'symbol table'],
     },
     {
-        'name': 'New test IPG, uniprot', 'modules': [
-            ('@collect_source_spectra', 0.0),
+        'name': 'IPG, uniprot', 'modules': [
             ('base_search', '0.1', 'proteingenes'),
         ],
         'searchtype': 'standard',
-        'dbtype': 'uniprot',
         'quanttype': 'isobaric',
         'required_params': ['multiplextype', 'denominators',
                             'instrument', 'modifications',
@@ -42,12 +36,27 @@ workflows = [
         'required_dsets': [],
         'not_used_tool_inputs': ['mzidnormalize'],
         'his_inputs': [],
-        'lib_inputs': ['target db', 'decoy db', 'biomart map',
+        'lib_inputs': ['target db', 'decoy db',
                        'knownpep predpi tabular'],
         'other_inputs': ['strips'],
-        'outputs': ['pout2mzid target tar', 'PSM table target',
-                    'peptide table', 'protein table', 'gene table',
-                    'symbol table'],
+    },
+    {
+        'name': 'IPG, proteincentric DB', 'modules': [
+            ('base_search', '0.1', 'proteins'),
+        ],
+        'searchtype': 'standard',
+        'quanttype': 'isobaric',
+        'required_params': ['multiplextype', 'denominators',
+                            'instrument', 'modifications',
+                            'setpatterns', 'setnames',
+                            'fr_matcher', 'strips', 'strippatterns',
+                            'perco_ids', 'ppoolsize'],
+        'required_dsets': [],
+        'not_used_tool_inputs': ['mzidnormalize'],
+        'his_inputs': [],
+        'lib_inputs': ['target db', 'decoy db',
+                       'knownpep predpi tabular'],
+        'other_inputs': ['strips'],
     },
     {
         'name': 'New test IPG, varDB isobaric', 'modules': [
@@ -55,7 +64,6 @@ workflows = [
             ('vardb_base', '0.1', 'peptides noncentric'),
         ],
         'searchtype': 'vardb',
-        'dbtype': 'vardb',
         'quanttype': 'isobaric',
         'required_params': ['multiplextype', 'denominators',
                             'instrument', 'modifications',
@@ -77,7 +85,6 @@ workflows = [
             ('vardb_base', '0.1', 'peptides noncentric'),
         ],
         'searchtype': 'vardb',
-        'dbtype': 'vardb',
         'quanttype': 'labelfree',
         'required_params': ['instrument', 'modifications',
                             'setpatterns', 'setnames',
