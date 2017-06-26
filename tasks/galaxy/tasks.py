@@ -390,16 +390,18 @@ def download_results(self, inputstore):
 
 
 def write_stdouts(inputstore, outpath_full):
+    if inputstore['params']['multiplextype'] is None:
+        return
     gi = get_galaxy_instance(inputstore)
     hiscon = gi.histories.show_history(inputstore['history'], contents=True)
-    DSET_NAME = 1  # FIXME
-    normalize_ds = [x for x in hiscon if x['name'] == DSET_NAME]
-    # TODO get job, or get stdout directly
-    #
+    normalize_ds = [x for x in hiscon
+                    if x['name'] == 'target peptides creation'][0]
+    normalize_job = gi.jobs.show_job(gi.datasets.show_dataset(
+        normalize_ds['id'])['creating_job'], full_details=True)
     summaryfn = os.path.join(outpath_full, 'summary.json')
     with open(summaryfn) as fp:
         report = json.load(fp)
-    report['stdout'] = {DSET_NAME: normalize_ds['stdout']}
+    report['stdout'] = {'normalizing medians': normalize_job['stdout']}
     with open(summaryfn, 'w') as fp:
         json.dump(report, fp, indent=2)
 
