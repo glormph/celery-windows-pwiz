@@ -388,6 +388,21 @@ def download_results(self, inputstore):
     return inputstore
 
 
+def write_stdouts(inputstore, outpath_full):
+    gi = get_galaxy_instance(inputstore)
+    hiscon = gi.histories.show_history(inputstore['history'], contents=True)
+    DSET_NAME = 1  # FIXME
+    normalize_ds = [x for x in hiscon if x['name'] == DSET_NAME]
+    # TODO get job, or get stdout directly
+    #
+    summaryfn = os.path.join(outpath_full, 'summary.json')
+    with open(summaryfn) as fp:
+        report = json.load(fp)
+    report['stdout'] = {DSET_NAME: normalize_ds['stdout']}
+    with open(summaryfn, 'w') as fp:
+        json.dump(report, fp, indent=2)
+
+
 def check_outputs_workflow_ok(gi, inputstore):
     """Checks if to-download datasets in workflow are finished, sets their API
     ID as download_id if they are ready, returns workflow_ok status in case
