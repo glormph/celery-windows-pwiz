@@ -352,8 +352,7 @@ def wait_for_completion(inputstore, gi):
         raise RuntimeError('Output datasets are in error or deleted state!')
 
 
-def cleanup(inputstore):
-    gi = get_galaxy_instance(inputstore)
+def cleanup(inputstore, gi):
     gi.histories.delete_history(inputstore['history'], purge=True)
     if not inputstore['keep_source']:
         gi.histories.delete_history(inputstore['source_history'], purge=True)
@@ -388,6 +387,7 @@ def store_summary(self, inputstore):
     with open(summaryfn, 'w') as fp:
         json.dump(summary, fp)
     print('Summary stored')
+    return inputstore
 
 
 @app.task(queue=config.QUEUE_STORAGE, bind=True)
@@ -420,15 +420,14 @@ def download_results(self, inputstore):
     print('Finished downloading results to disk for history '
           '{}. Wrapping up stdout and erasing history and '
           'source history'.format(inputstore['history']))
-    write_stdouts(inputstore, outpath_full)
-    cleanup(inputstore)
+    write_stdouts(inputstore, outpath_full, gi)
+    cleanup(inputstore, gi)
     return inputstore
 
 
-def write_stdouts(inputstore, outpath_full):
+def write_stdouts(inputstore, outpath_full, gi):
     if inputstore['params']['multiplextype'] is None:
         return
-    gi = get_galaxy_instance(inputstore)
     hiscon = gi.histories.show_history(inputstore['history'], contents=True)
     normalize_ds = [x for x in hiscon
                     if x['name'] == 'target peptides creation'][0]
