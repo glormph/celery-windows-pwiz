@@ -41,6 +41,42 @@ def storage_copy_file(self, inputstore, number):
 
 
 @app.task(queue=config.QUEUE_GALAXY_TOOLS, bind=True)
+def misc_files_copy(self, inputstore, filelist):
+    """Inputstore will contain some files that are on storage server, which
+    may be imported to search history. E.g. special DB"""
+    gi = get_galaxy_instance(inputstore)
+    dsets = inputstore['datasets']
+    for dset_name in filelist:
+        print('Copy-importing {} to galaxy history '.format(dset_name))
+        tool_inputs = {
+            'folder': 'databases',
+            'filename': dsets[dset_name]['id'][0],
+            'transfertype': 'copy',
+            'dtype': dsets[dset_name]['id'][1],
+        }
+        dset = gi.tools.run_tool(inputstore['source_history'], 'locallink',
+                                 tool_inputs=tool_inputs)
+        state = wait_for_copyjob(dset)
+        if state == 'ok':
+            print('File {} imported'.format(dsets[dset_name]['id'][0]))
+            dsets[dset_name]['id'] = dset['outputs'][0]['id']
+            return inputstore
+        else:
+            errormsg = ('Problem copying file '
+                        '{}'.format(dsets[dset_name]['id'][0]))
+            print(errormsg)
+            self.retry(exc=errormsg)
+
+
+def wait_for_copyjob(dset, gi):
+    state = dset['jobs'][0]['state']
+    while state in ['new', 'queued', 'running']:
+        sleep(10)
+        state = gi.jobs.show_job(dset['jobs'][0]['id'])['state']
+    return state
+
+
+@app.task(queue=config.QUEUE_GALAXY_TOOLS, bind=True)
 def local_link_file(self, inputstore, number):
     """Inputstore will contain one raw file, and a galaxy history.
     Raw file will have a file_id which can be read by the DB"""
