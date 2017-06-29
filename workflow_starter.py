@@ -473,21 +473,19 @@ def fill_in_iso(step, isokey, subkey, value):
     step['tool_state'] = json.dumps(ts)
 
 
-def disable_isobaric_params(wf_json, proteincentric=False):
+def disable_isobaric_params(wf_json):
     print('Removing isobaric steps and inputs from workflow')
     for step in wf_json['steps'].values():
         if step['name'] == 'Process PSM table':
             fill_in_iso(step, 'isobaric', 'yesno', 'false')
             fill_in_iso(step, 'isobaric', 'denompatterns', '')
-        elif step['name'] == 'Create peptide table':
-            fill_in_iso(step, 'isoquant', 'yesno', 'false')
-            fill_in_iso(step, 'isoquant', 'denompatterns', '')
         elif step['name'] == 'Merge peptide or protein tables':
             ts = json.loads(step['tool_state'])
             ts['isobqcolpattern'] = json.dumps('')
             ts['nopsmcolpattern'] = json.dumps('')
             step['tool_state'] = json.dumps(ts)
-        elif proteincentric and step['name'] == 'Create protein table':
+        elif step['name'] in ['Create peptide table', 'Create protein table',
+                              'Create gene table', 'Create symbol table']:
             fill_in_iso(step, 'isoquant', 'yesno', 'false')
             fill_in_iso(step, 'isoquant', 'denompatterns', '')
 
@@ -512,7 +510,7 @@ def remove_isobaric_from_protein_centric(wf_json):
         if stepname.strip() == 'Normalization-ratio protein table':
             remove_step_from_wf(step['id'], wf_json)
             break
-    disable_isobaric_params(wf_json, proteincentric=True)
+    disable_isobaric_params(wf_json)
 
 
 def is_runtime_param(val, name, step):
@@ -572,7 +570,7 @@ def finalize_galaxy_workflow(raw_json, modtype, inputstore, timestamp, gi):
     if inputstore['wf']['quanttype'] == 'labelfree':
         if modtype == 'peptides noncentric':
             remove_isobaric_from_peptide_centric(wf_json)
-        if modtype in ['proteingenes', 'proteins']:
+        if modtype in ['proteingenessymbols', 'proteingenes', 'proteins']:
             remove_isobaric_from_protein_centric(wf_json)
     print('Filling in runtime values...')
     for step in wf_json['steps'].values():
