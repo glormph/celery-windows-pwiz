@@ -538,23 +538,36 @@ def run_workflow(inputstore, gi):
         name=inputstore['searchname'])['id']
     inputstore['source_history'] = gi.histories.create_history(
         name='{}_source'.format(inputstore['searchname']))['id']
-    runchain = [tasks.storage_copy_file.s(inputstore, 0)]
+    wf_mods, inputstore['wf']['uploaded'] = {}, {}
+    for module in inputstore['wf']['modules']:
+        if module[0][0] != '@':
+            modname, version, modtype = module[0], module[1], module[2]
+            raw_json = get_versioned_module(modname, version)
+            inputstore, g_id = finalize_galaxy_workflow(raw_json, modtype,
+                                                        inputstore, timest, gi)
+            modname, version, modtype = module[0], module[1], module[2]
+            wf_mods['{}_{}'.format(modname, version)] = g_id
+    miscfiles, runchain = [], []
+    if inputstore['datasets']['target db']['id'] is not None:
+        miscfiles.append('target db')
+        miscfiles.append('decoy db')
+    if miscfiles != []:
+        runchain.extend([tasks.misc_files_copy.s(inputstore, miscfiles),
+                         tasks.store_summary.s()])
+    else:
+        runchain.append(tasks.store_summary.delay(inputstore))
     runchain.extend([tasks.storage_copy_file.s(ix) for ix in
-                     range(1, len(inputstore['raw']))])
-    inputstore['wf']['uploaded'] = {}
+                     range(0, len(inputstore['raw']))])
     for module in inputstore['wf']['modules']:
         if module[0][0] == '@':
             runchain.append(nonwf_tasks.tasks[module[0]]['task'].s())
         else:
             modname, version, modtype = module[0], module[1], module[2]
-            raw_json = get_versioned_module(modname, version)
-            inputstore, g_id = finalize_galaxy_workflow(raw_json, modtype,
-                                                        inputstore, timest, gi)
-            runchain.append(tasks.run_search_wf.s(g_id))
+            runchain.append(tasks.run_search_wf.s(
+                wf_mods['{}_{}'.format(modname, version)]))
     runchain.append(tasks.download_results.s())
-    #res = chain(*runchain)
-    #res.delay()
-    #tasks.store_summary.delay(inputstore)
+    res = chain(*runchain)
+    res.delay()
 
 
 def finalize_galaxy_workflow(raw_json, modtype, inputstore, timestamp, gi):
