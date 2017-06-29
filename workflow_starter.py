@@ -279,8 +279,7 @@ def fill_runtime_params(step, params):
     # Use annotation to define step name in case that is given, to be able
     # to get steps like sed which have a very general name and may occur more
     # than once
-    annot = step['annotation']
-    stepname = annot[:annot.index('---')] if annot else step['name']
+    stepname = get_stepname_or_annotation(step)
     dset_input_names = [x['name'] for x in step['inputs'] if not
                         x['description'].startswith('runtime parameter')]
     for input_name, input_val in tool_param_inputs.items():
@@ -397,13 +396,17 @@ def connect_specquant_workflow(spec_wf_json, search_wf_json):
             step['input_connections']['lookup']['id'] = lookupstep['id']
 
 
+def get_stepname_or_annotation(step):
+    annot = step['annotation']
+    return annot[:annot.index('---')] if annot else step['name']
+
+
 def remove_annotated_steps(wf_json, annot_or_name):
     stepfound = True
     while stepfound:
         stepfound = False
         for step in wf_json['steps'].values():
-            annot = step['annotation']
-            stepname = annot[:annot.index('---')] if annot else step['name']
+            stepname = get_stepname_or_annotation(step)
             if annot_or_name in stepname:
                 remove_step_from_wf(step['id'], wf_json, remove_connections=True)
                 stepfound = True
@@ -505,9 +508,8 @@ def remove_isobaric_from_peptide_centric(wf_json):
 def remove_isobaric_from_protein_centric(wf_json):
     # Remove normalize generating step
     for step in wf_json['steps'].values():
-        annot = step['annotation']
-        stepname = annot[annot.index('---') + 3:] if annot else step['name']
-        if stepname.strip() == 'Normalization-ratio generating step':
+        stepname = get_stepname_or_annotation(step)
+        if stepname.strip() == 'Normalization-ratio protein table':
             remove_step_from_wf(step['id'], wf_json)
             break
     disable_isobaric_params(wf_json, proteincentric=True)
