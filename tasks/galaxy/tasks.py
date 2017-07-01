@@ -429,14 +429,23 @@ def write_stdouts(inputstore, outpath_full, gi):
     if inputstore['params']['multiplextype'] is None:
         return
     hiscon = gi.histories.show_history(inputstore['history'], contents=True)
-    normalize_ds = [x for x in hiscon
-                    if x['name'] == 'target peptides creation'][0]
-    normalize_job = gi.jobs.show_job(gi.datasets.show_dataset(
-        normalize_ds['id'])['creating_job'], full_details=True)
+    possible_dscols = [x for x in hiscon
+                       if x['name'][:20] == 'Create peptide table'
+                       and x['history_content_type'] == 'dataset_collection']
+    stdouts = {}
+    for pepdscol in possible_dscols:
+        coldsets = gi.histories.show_dataset_collection(inputstore['history'],
+                                                        pepdscol['id'])
+        for colds in coldsets['elements']:
+            pep_job = gi.jobs.show_job(gi.datasets.show_dataset(
+                colds['object']['id'])['creating_job'], full_details=True)
+            if not 'medians' in pep_job['stdout']:
+                break
+            stdouts[colds['element_identifier']] = pep_job['stdout']
     summaryfn = os.path.join(outpath_full, 'summary.json')
     with open(summaryfn) as fp:
         report = json.load(fp)
-    report['stdout'] = {'normalizing medians': normalize_job['stdout']}
+    report['stdout'] = {'normalizing medians': stdouts}
     with open(summaryfn, 'w') as fp:
         json.dump(report, fp, indent=2)
 
