@@ -584,8 +584,7 @@ def run_workflow(inputstore, gi):
 
 
 def finalize_galaxy_workflow(raw_json, modtype, inputstore, timestamp, gi):
-    if (modtype == 'proteingenes' and
-            inputstore['datasets']['quant lookup']['id'] is None):
+    if inputstore['datasets']['quant lookup']['id'] is None:
         specquant_wfjson = get_spectraquant_wf(inputstore)
         connect_specquant_workflow(specquant_wfjson, raw_json)
     wf_json = add_repeats_to_workflow_json(inputstore, raw_json)
