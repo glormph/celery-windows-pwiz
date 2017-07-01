@@ -444,8 +444,6 @@ def remove_biomart_symbol_steps(wf_json):
     mart_step_id = get_input_dset_step_id_for_name(step_tool_states,
                                                    'biomart map')
     remove_step_from_wf(mart_step_id, wf_json)
-    # remove all boxes which say symbol_table in annotation
-    remove_annotated_steps(wf_json, 'symbol table')
 
 
 def remove_step_from_wf(removestep_id, wf_json, remove_connections=False):
@@ -588,8 +586,10 @@ def finalize_galaxy_workflow(raw_json, modtype, inputstore, timestamp, gi):
         specquant_wfjson = get_spectraquant_wf(inputstore)
         connect_specquant_workflow(specquant_wfjson, raw_json)
     wf_json = add_repeats_to_workflow_json(inputstore, raw_json)
-    if modtype in ['proteingenes', 'proteins']:
+    if inputstore['wf']['dbtype'] != 'ensembl':
         remove_biomart_symbol_steps(wf_json)
+    if modtype != 'proteingenessymbols':
+        remove_annotated_steps(wf_json, 'symbol table')
     if modtype == 'proteins':
         remove_gene_steps(wf_json)
     if inputstore['wf']['quanttype'] == 'labelfree':
