@@ -515,7 +515,6 @@ def disable_isobaric_params(wf_json):
         elif step['name'] in ['Create peptide table', 'Create protein table',
                               'Create gene table', 'Create symbol table']:
             fill_in_iso(step, 'isoquant', 'yesno', 'false')
-            fill_in_iso(step, 'isoquant', 'denompatterns', '')
 
 
 def remove_isobaric_from_peptide_centric(wf_json):
@@ -535,7 +534,7 @@ def remove_isobaric_from_protein_centric(wf_json):
     # Remove normalize generating step
     for step in wf_json['steps'].values():
         stepname = get_stepname_or_annotation(step)
-        if stepname.strip() == 'Normalization-ratio protein table':
+        if stepname.strip() == 'Normalization protein isobaric ratio table':
             remove_step_from_wf(step['id'], wf_json)
             break
     disable_isobaric_params(wf_json)
@@ -576,14 +575,14 @@ def run_workflow(inputstore, gi):
             modname, version, modtype = module[0], module[1], module[2]
             wf_mods['{}_{}'.format(modname, version)] = g_id
     miscfiles, runchain = [], []
-    if inputstore['datasets']['target db']['id'] is not None:
+    if type(inputstore['datasets']['target db']['id']) == tuple:
         miscfiles.append('target db')
         miscfiles.append('decoy db')
     if miscfiles != []:
         runchain.extend([tasks.misc_files_copy.s(inputstore, miscfiles),
                          tasks.store_summary.s()])
     else:
-        runchain.append(tasks.store_summary.delay(inputstore))
+        runchain.append(tasks.store_summary.s(inputstore))
     runchain.extend([tasks.storage_copy_file.s(ix) for ix in
                      range(0, len(inputstore['raw']))])
     for module in inputstore['wf']['modules']:
@@ -628,8 +627,6 @@ def finalize_galaxy_workflow(raw_json, modtype, inputstore, timestamp, gi):
         fill_runtime_params(step, inputstore['params'])
     print('Uploading workflow...')
     wf_json['name'] = '{}_{}'.format(inputstore['searchname'], timestamp)
-#            for x,y in wf_json.items():
-#                print(x, y)
     uploaded = gi.workflows.import_workflow_json(wf_json)
     inputstore['wf']['uploaded'][uploaded['id']] = wf_json
     return inputstore, uploaded['id']
