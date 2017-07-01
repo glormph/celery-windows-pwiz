@@ -229,6 +229,11 @@ def add_repeats_to_workflow_json(inputstore, wf_json):
                                'set_name': setname} for ix, (setid, setname) in
                               enumerate(zip(params['setpatterns'],
                                             params['setnames']))])
+    if params['multiplextype'] is not None:
+        print('Making denomlist')
+        denom_list = [{'__index__': ix, 'setname': sd['setname'],
+                       'denompatterns': sd['denoms']} for ix, sd in
+                      enumerate(params['setdenominators'])]
     percin_input_stepids = set()
     # Add setnames to repeats, pi strips to delta-pi-calc
     for step in wf_json['steps'].values():
@@ -245,6 +250,14 @@ def add_repeats_to_workflow_json(inputstore, wf_json):
             step['tool_state'] = json.dumps(state_dic)
         elif 'msslookup_spectra' in step['tool_id']:
             state_dic['pools'] = lookup_list
+            step['tool_state'] = json.dumps(state_dic)
+        elif (('create_protein_table' in step['tool_id'] or
+                'create_peptide_table' in step['tool_id']) and
+              params['multiplextype'] is not None and
+              json.loads(state_dic['isoquant'])['yesno'] == 'true'):
+            iq = json.loads(state_dic['isoquant'])
+            iq['setdenoms'] = denom_list
+            state_dic['isoquant'] = json.dumps(iq)
             step['tool_state'] = json.dumps(state_dic)
         elif 'calc_delta_pi' in step['tool_id']:
             state_dic['strips'] = strip_list
