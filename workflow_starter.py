@@ -426,9 +426,26 @@ def remove_annotated_steps(wf_json, annot_or_name):
                 break
 
 
+def set_level_one_option(wf_json, stepname, option, value):
+    for step in wf_json['steps'].values():
+        if step['name'] == stepname:
+            ts = json.loads(step['tool_state'])
+            ts[option] = json.dumps(value)
+            step['tool_state'] = json.dumps(ts)
+
+
+def remove_protein_steps(wf_json):
+    print('Removing proteingrouping, proteincentric steps and inputs '
+          'from workflow')
+    remove_annotated_steps(wf_json, 'protein table')
+    # Remove proteingrouping too
+    set_level_one_option(wf_json, 'Process PSM table', 'proteingroup', 'false')
+
+
 def remove_gene_steps(wf_json):
-    print('Removing Genecentric steps and inputs from workflow')
+    print('Removing Genecentric steps, options and inputs from workflow')
     remove_annotated_steps(wf_json, 'gene table')
+    set_level_one_option(wf_json, 'Process PSM table', 'genes', 'false')
 
 
 def remove_biomart_symbol_steps(wf_json):
@@ -592,8 +609,17 @@ def finalize_galaxy_workflow(raw_json, modtype, inputstore, timestamp, gi):
         remove_annotated_steps(wf_json, 'symbol table')
     if modtype == 'proteins':
         remove_gene_steps(wf_json)
-    if inputstore['wf']['quanttype'] == 'labelfree':
-        if modtype == 'peptides noncentric':
+    if modtype == 'peptides proteincentric':
+        remove_gene_steps(wf_json)
+        remove_protein_steps(wf_json)
+    if modtype == 'peptides noncentric':
+        # FIXME
+        pass
+        #remove_gene_steps(wf_json)
+        #remove_protein_steps(wf_json)
+    if inputstore['params']['multiplextype'] is None:
+        if modtype in ['peptides noncentric', 'peptides proteincentric']:
+            # FIXME the remove_iso_peptide is possibly wrong.
             remove_isobaric_from_peptide_centric(wf_json)
         if modtype in ['proteingenessymbols', 'proteingenes', 'proteins']:
             remove_isobaric_from_protein_centric(wf_json)
