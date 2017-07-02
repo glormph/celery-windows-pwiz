@@ -56,16 +56,16 @@ def misc_files_copy(self, inputstore, filelist):
         }
         dset = gi.tools.run_tool(inputstore['source_history'], 'locallink',
                                  tool_inputs=tool_inputs)
-        state = wait_for_copyjob(dset)
+        state = wait_for_copyjob(dset, gi)
         if state == 'ok':
             print('File {} imported'.format(dsets[dset_name]['id'][0]))
             dsets[dset_name]['id'] = dset['outputs'][0]['id']
-            return inputstore
         else:
             errormsg = ('Problem copying file '
                         '{}'.format(dsets[dset_name]['id'][0]))
             print(errormsg)
             self.retry(exc=errormsg)
+    return inputstore
 
 
 def wait_for_copyjob(dset, gi):
