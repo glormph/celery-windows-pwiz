@@ -19,7 +19,8 @@ def storage_copy_file(self, inputstore, number):
           '{}'.format(rawdata['filename'], inputstore['source_history']))
     gi = get_galaxy_instance(inputstore)
     tool_inputs = {
-        'folder': rawdata['folder'],
+        'folder': os.path.join(config.GALAXY_STORAGE_MOUNTPATH,
+                               rawdata['folder']),
         'filename': rawdata['filename'],
         'transfertype': 'copy',
         'dtype': 'mzml',
@@ -85,7 +86,8 @@ def local_link_file(self, inputstore, number):
           '{}'.format(rawdata['filename'], inputstore['source_history']))
     gi = get_galaxy_instance(inputstore)
     tool_inputs = {
-        'folder': rawdata['folder'],
+        'folder': os.path.join(config.GALAXY_STORAGE_MOUNTPATH,
+                               rawdata['folder']),
         'filename': rawdata['filename'],
         'transfertype': 'link',
         'dtype': 'mzml',
