@@ -434,12 +434,24 @@ def set_level_one_option(wf_json, stepname, option, value):
             step['tool_state'] = json.dumps(ts)
 
 
+def set_level_two_option(wf_json, stepname, levelone_key, subkey, value):
+    for step in wf_json['steps'].values():
+        if step['name'] == stepname:
+            ts = json.loads(step['tool_state'])
+            sub_ts = json.loads(ts[levelone_key])
+            sub_ts[subkey] = value
+            ts[levelone_key] = json.dumps(sub_ts)
+            step['tool_state'] = json.dumps(ts)
+
+
 def remove_protein_steps(wf_json):
     print('Removing proteingrouping, proteincentric steps and inputs '
           'from workflow')
     remove_annotated_steps(wf_json, 'protein table')
     # Remove proteingrouping too
     set_level_one_option(wf_json, 'Process PSM table', 'proteingroup', 'false')
+    set_level_two_option(wf_json, 'Merge peptide or protein tables',
+                         'quants', 'centric', 'plain')
 
 
 def remove_gene_steps(wf_json):
@@ -493,28 +505,19 @@ def remove_step_from_wf(removestep_id, wf_json, remove_connections=False):
     wf_json['steps'] = newsteps
 
 
-def fill_in_iso(step, isokey, subkey, value):
-    ts = json.loads(step['tool_state'])
-    iso_ts = json.loads(ts[isokey])
-    iso_ts[subkey] = value
-    ts[isokey] = json.dumps(iso_ts)
-    step['tool_state'] = json.dumps(ts)
-
-
 def disable_isobaric_params(wf_json):
     print('Removing isobaric steps and inputs from workflow')
-    for step in wf_json['steps'].values():
-        if step['name'] == 'Process PSM table':
-            fill_in_iso(step, 'isobaric', 'yesno', 'false')
-            fill_in_iso(step, 'isobaric', 'denompatterns', '')
-        elif step['name'] == 'Merge peptide or protein tables':
-            ts = json.loads(step['tool_state'])
-            ts['isobqcolpattern'] = json.dumps('')
-            ts['nopsmcolpattern'] = json.dumps('')
-            step['tool_state'] = json.dumps(ts)
-        elif step['name'] in ['Create peptide table', 'Create protein table',
-                              'Create gene table', 'Create symbol table']:
-            fill_in_iso(step, 'isoquant', 'yesno', 'false')
+    set_level_two_option(wf_json, 'Process PSM table', 'isobaric', 'yesno',
+                         'false')
+    set_level_two_option(wf_json,  'Process PSM table', 'isobaric',
+                         'denompatterns', '')
+    set_level_one_option(wf_json, 'Merge peptide or protein tables',
+                         'isobqcolpattern', '')
+    set_level_one_option(wf_json, 'Merge peptide or protein tables',
+                         'nopsmcolpattern', '')
+    for stepname in ['Create peptide table', 'Create protein table',
+                     'Create gene table', 'Create symbol table']:
+        set_level_two_option(stepname, 'isoquant', 'yesno', 'false')
 
 
 def remove_isobaric_from_peptide_centric(wf_json):
