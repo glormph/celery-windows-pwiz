@@ -287,7 +287,8 @@ def run_search_wf(self, inputstore, wf_id):
     print('Workflow start task: Preparing inputs for workflow '
           'module {}'.format(wf_id))
     gi = get_galaxy_instance(inputstore)
-    inputstore = collect_spectra(inputstore, gi)
+    if inputstore['datasets']['spectra']['id'] is None:
+        inputstore = collect_spectra(inputstore, gi)
     wf_json = inputstore['wf']['uploaded'][wf_id]
     input_labels = get_input_labels_json(wf_json)
     try:

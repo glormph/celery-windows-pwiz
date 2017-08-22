@@ -586,8 +586,9 @@ def run_workflow(inputstore, gi):
                          tasks.store_summary.s()])
     else:
         runchain.append(tasks.store_summary.s(inputstore))
-    runchain.extend([tasks.storage_copy_file.s(ix) for ix in
-                     range(0, len(inputstore['raw']))])
+    if inputstore['datasets']['spectra']['id'] is None:
+        runchain.extend([tasks.storage_copy_file.s(ix) for ix in
+                         range(0, len(inputstore['raw']))])
     for module in inputstore['wf']['modules']:
         if module[0][0] == '@':
             runchain.append(nonwf_tasks.tasks[module[0]]['task'].s())
