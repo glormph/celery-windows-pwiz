@@ -547,7 +547,7 @@ def get_workflow_inputs_json(wfjson):
     for step in wfjson['steps'].values():
         if (step['tool_id'] is None and step['name'] in
                 ['Input dataset', 'Input dataset collection']):
-            yield(json.loads(step['tool_state'])['name'], step['uuid'])
+            yield(step['label'], step['uuid'])
 
 
 def get_workflow_inputs(wfmod):
