@@ -49,12 +49,10 @@ def misc_files_copy(self, inputstore, filelist):
     dsets = inputstore['datasets']
     for dset_name in filelist:
         print('Copy-importing {} to galaxy history '.format(dset_name))
-        tool_inputs = {
-            'folder': 'databases',
-            'filename': dsets[dset_name]['id'][0],
-            'transfertype': 'copy',
-            'dtype': dsets[dset_name]['id'][1],
-        }
+        folder, fn = os.path.split(dsets[dset_name]['id'][0])
+        tool_inputs = {'folder': folder, 'filename': fn,
+                       'transfertype': 'copy', 'dtype':
+                       dsets[dset_name]['id'][1]}
         dset = gi.tools.run_tool(inputstore['source_history'], 'locallink',
                                  tool_inputs=tool_inputs)
         state = wait_for_copyjob(dset, gi)
