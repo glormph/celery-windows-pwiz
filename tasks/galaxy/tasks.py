@@ -61,6 +61,7 @@ def misc_files_copy(self, inputstore, filelist):
         if state == 'ok':
             print('File {} imported'.format(dsets[dset_name]['id'][0]))
             dsets[dset_name]['id'] = dset['outputs'][0]['id']
+            dsets[dset_name]['src'] = 'hda'
         else:
             errormsg = ('Problem copying file '
                         '{}'.format(dsets[dset_name]['id'][0]))
@@ -383,8 +384,9 @@ def store_summary(self, inputstore):
     for name, dset in inputstore['datasets'].items():
         if 'id' in dset and dset['id'] is not None:
             summary['datasets'][name] = dset
-            if dset['src'] != 'ld':
-                print('Dataset {} not a library, collecting name'.format(name))
+            if dset['src'] not in ['ld', 'disk']:
+                print('Dataset {} : {} neither in library nor file on disk, '
+                      'probably Galaxy ID: fetching'.format(name, dset['id']))
                 gname = gi.datasets.show_dataset(dset['id'])['name']
                 summary['datasets'][name]['galaxy_name'] = gname
     with open(summaryfn, 'w') as fp:
