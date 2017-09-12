@@ -103,14 +103,7 @@ def tmp_convert_to_mzml(self, inputstore):
     except RuntimeError as e:
         cleanup_files(infile, resultpath)
         self.retry(exc=e)
-    try:
-        copy_outfile(resultpath)
-    except Exception as e:
-        print('{} -- Could not copy converted mzML file {} to '
-              'outdisk'.format(e, resultpath))
-        cleanup_files(infile, resultpath)
-        self.retry(countdown=60, exc=e)
-    cleanup_files(infile, resultpath)
+    cleanup_files(infile)
     return inputstore
 
 
