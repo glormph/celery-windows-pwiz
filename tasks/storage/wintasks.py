@@ -13,14 +13,14 @@ from tasks.storage import scp
 
 
 PROTEOWIZ_LOC = ('C:\Program Files\ProteoWizard\ProteoWizard '
-                 '3.0.6002\msconvert.exe')
+                 '3.0.11336\msconvert.exe')
 PSCP_LOC = ('C:\Program Files\Putty')
 RAWDUMPS = 'C:\\rawdump'
 MZMLDUMPS = 'C:\\mzmldump'
 OUTBOX = 'X:'
 
 
-@app.task(queue=config.QUEUE_SCP, bind=True)
+@app.task(queue=config.QUEUE_PWIZIO, bind=True)
 def tmp_scp_storage(self, inputstore):
     mzmlfile = os.path.join(MZMLDUMPS, inputstore['mzml'])
     hashmd5 = md5()
@@ -73,21 +73,9 @@ def tmp_convert_to_mzml(self, inputstore):
         subprocess_flags = 0x8000000  # win32con.CREATE_NO_WINDOW?
     else:
         subprocess_flags = 0
-    remote_file = os.path.join(inputstore['winshare'],
-                               inputstore['current_storage_dir'],
-                               inputstore['raw'])
-    print('Received conversion command for file {0}'.format(remote_file))
-    try:
-        infile = copy_infile(remote_file)
-    except Exception:
-        try:
-            cleanup_files(infile)
-        except FileNotFoundError:
-            pass
-        print('{} -- WARNING, could not copy input {} to local '
-              'disk'.format(e, remote_file))
-        self.retry(exc=e, countdown=60)
-    outfile = os.path.splitext(os.path.basename(infile))[0] + '.mzML'
+    print('Received conversion command for file {0}'.format(inputstore['raw']))
+    infile = os.path.join(RAWDUMPS, inputstore['raw'])
+    outfile = os.path.splitext(inputstore['raw'])[0] + '.mzML'
     inputstore['mzml'] = outfile
     resultpath = os.path.join(MZMLDUMPS, outfile)
     command = [PROTEOWIZ_LOC, infile, '--filter', '"peakPicking true 2"',
@@ -112,11 +100,24 @@ def cleanup_files(*files):
         os.remove(fpath)
 
 
-def copy_infile(rawfile):
-    dst = os.path.join(RAWDUMPS, os.path.basename(rawfile))
+@app.task(queue=config.QUEUE_PWIZIO, bind=True)
+def copy_infile(self, inputstore):
+    remote_file = os.path.join(inputstore['winshare'],
+                               inputstore['current_storage_dir'],
+                               inputstore['raw'])
+    dst = os.path.join(RAWDUMPS, inputstore['raw'])
     print('copying file to local dumpdir')
-    shutil.copy(rawfile, dst)
-    return dst
+    try:
+        shutil.copy(remote_file, dst)
+    except Exception as e:
+        try:
+            cleanup_files(dst)
+        # windows specific error
+        except FileNotFoundError:
+            pass
+        print('{} -- WARNING, could not copy input {} to local '
+              'disk'.format(e, dst))
+    return inputstore
 
 
 def copy_outfile(outfile):
