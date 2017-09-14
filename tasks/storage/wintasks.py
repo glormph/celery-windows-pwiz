@@ -43,7 +43,7 @@ def tmp_scp_storage(self, inputstore):
     print('Copied file, checking MD5 remotely using nested task')
     md5res = md5_check_arrived_file.delay(inputstore)
     while not md5res.ready():
-        time.sleep(30)
+        sleep(30)
     if not md5res.get() == inputstore['mzml_md5']:
         print('Destination MD5 {} is not same as source MD5 {}. Retrying in 60 '
               'seconds'.format(dst_md5, mzml_md5))
@@ -53,8 +53,8 @@ def tmp_scp_storage(self, inputstore):
     return inputstore
 
 
-@app.task(bind=True, queue=QUEUE_SCPMD5)
-def md5_check_arrived_file(inputstore):
+@app.task(bind=True, queue=config.QUEUE_SCPMD5)
+def md5_check_arrived_file(self, inputstore):
     arrived_file = os.path.join(config.STORAGESHARE,
                                 inputstore['current_storage_dir'],
                                 inputstore['mzml'])
@@ -68,6 +68,7 @@ def md5_check_arrived_file(inputstore):
     except:
         print('MD5 calculation failed, check file location at {}'.format(arrived_file))
         self.retry(countdown=60)
+    print('MD5 for {} is {}'.format(arrived_file, dst_md5))
     return dst_md5
 
 
