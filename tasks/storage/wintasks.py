@@ -2,6 +2,7 @@ import sys
 import os
 import subprocess
 import shutil
+from time import sleep
 from hashlib import md5
 
 
@@ -26,9 +27,9 @@ def tmp_scp_storage(self, inputstore):
     with open(mzmlfile, 'rb') as fp:
         for chunk in iter(lambda: fp.read(4096), b''):
             hashmd5.update(chunk)
-    mzml_md5 = hashmd5.hexdigest()
+    inputstore['mzml_md5'] = hashmd5.hexdigest()
     print('Copying mzML file {} with md5 {} to storage'.format(
-        inputstore['mzml'], mzml_md5))
+        inputstore['mzml'], inputstore['mzml_md5']))
     dstfolder = os.path.join(config.STORAGESHARE,
                              inputstore['current_storage_dir']).replace('\\', '/')
     dst = '{}@{}:{}'.format(config.SCP_LOGIN, config.STORAGESERVER, dstfolder)
@@ -39,10 +40,25 @@ def tmp_scp_storage(self, inputstore):
         # usually when this task has probelsm it is usually related to network
         # or corrupt file, both of which are not nice to retry
         self.retry(countdown=60)
-    print('Copied file, calculating MD5')
-    arrived_file = os.path.join(inputstore['winshare'],
+    print('Copied file, checking MD5 remotely using nested task')
+    md5res = md5_check_arrived_file.delay(inputstore)
+    while not md5res.ready():
+        time.sleep(30)
+    if not md5res.get() == inputstore['mzml_md5']:
+        print('Destination MD5 {} is not same as source MD5 {}. Retrying in 60 '
+              'seconds'.format(dst_md5, mzml_md5))
+        self.retry(countdown=60)
+    print('done and removing local file {}'.format(inputstore['mzml']))
+    os.remove(mzmlfile)
+    return inputstore
+
+
+@app.task(bind=True, queue=QUEUE_SCPMD5)
+def md5_check_arrived_file(inputstore):
+    arrived_file = os.path.join(config.STORAGESHARE,
                                 inputstore['current_storage_dir'],
-                                os.path.basename(mzmlfile))
+                                inputstore['mzml'])
+    print('Calculating MD5 for {}'.format(arrived_file))
     hashmd5 = md5()
     try:
         with open(arrived_file, 'rb') as fp:
@@ -50,19 +66,9 @@ def tmp_scp_storage(self, inputstore):
                 hashmd5.update(chunk)
         dst_md5 = hashmd5.hexdigest()
     except:
-        # FIXME probably better to not retry? put in dead letter queue?
-        # usually when this task has probelsm it is usually related to network
         print('MD5 calculation failed, check file location at {}'.format(arrived_file))
         self.retry(countdown=60)
-    if not dst_md5 == mzml_md5:
-        print('Destination MD5 {} is not same as source MD5 {}'.format(dst_md5, mzml_md5))
-        self.retry(countdown=60)
-        return
-    inputstore['mzml_md5'] = mzml_md5
-    inputstore['mzml_path'] = dst
-    print('done with {}'.format(inputstore['mzml']))
-    os.remove(mzmlfile)
-    return inputstore
+    return dst_md5
 
 
 @app.task(bind=True, queue=config.QUEUE_PWIZ1)
