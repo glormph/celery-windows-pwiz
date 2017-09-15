@@ -2,37 +2,37 @@ import sys
 import os
 import subprocess
 import shutil
+from time import sleep
 from hashlib import md5
 
 
 from celeryapp import app
 from tasks import config
 
-# import task to chain, could poss be removed
-from tasks.storage import scp
-
 
 PROTEOWIZ_LOC = ('C:\Program Files\ProteoWizard\ProteoWizard '
                  '3.0.11336\msconvert.exe')
-PSCP_LOC = ('C:\Program Files\Putty')
+PSCP_LOC = ('C:\Program Files\PuTTY\pscp.exe')
 RAWDUMPS = 'C:\\rawdump'
 MZMLDUMPS = 'C:\\mzmldump'
 OUTBOX = 'X:'
 
 
-@app.task(queue=config.QUEUE_PWIZIO, bind=True)
+@app.task(queue=config.QUEUE_PWIZ1IO, bind=True)
 def tmp_scp_storage(self, inputstore):
     mzmlfile = os.path.join(MZMLDUMPS, inputstore['mzml'])
+    print('Got copy-to-storage command, calculating MD5 for file '
+          '{}'.format(inputstore['mzml']))
     hashmd5 = md5()
     with open(mzmlfile, 'rb') as fp:
         for chunk in iter(lambda: fp.read(4096), b''):
             hashmd5.update(chunk)
-    mzml_md5 = hashmd5.hexdigest()
+    inputstore['mzml_md5'] = hashmd5.hexdigest()
     print('Copying mzML file {} with md5 {} to storage'.format(
-        inputstore['mzml'], mzml_md5))
-    dstfolder = os.path.join(inputstore['winshare'],
-                             inputstore['current_storage_dir'])
-    dst = '{}@{}'.format(config.SCP_LOGIN, dstfolder)
+        inputstore['mzml'], inputstore['mzml_md5']))
+    dstfolder = os.path.join(config.STORAGESHARE,
+                             inputstore['current_storage_dir']).replace('\\', '/')
+    dst = '{}@{}:{}'.format(config.SCP_LOGIN, config.STORAGESERVER, dstfolder)
     try:
         subprocess.check_call([PSCP_LOC, '-i', config.PUTTYKEY, mzmlfile, dst])
     except:
@@ -40,27 +40,39 @@ def tmp_scp_storage(self, inputstore):
         # usually when this task has probelsm it is usually related to network
         # or corrupt file, both of which are not nice to retry
         self.retry(countdown=60)
-    arrived_file = os.path.join(dstfolder, os.path.basename(mzmlfile))
+    print('Copied file, checking MD5 remotely using nested task')
+    md5res = md5_check_arrived_file.delay(inputstore)
+    while not md5res.ready():
+        sleep(30)
+    if not md5res.get() == inputstore['mzml_md5']:
+        print('Destination MD5 {} is not same as source MD5 {}. Retrying in 60 '
+              'seconds'.format(dst_md5, mzml_md5))
+        self.retry(countdown=60)
+    print('done and removing local file {}'.format(inputstore['mzml']))
+    os.remove(mzmlfile)
+    return inputstore
+
+
+@app.task(bind=True, queue=config.QUEUE_SCPMD5)
+def md5_check_arrived_file(self, inputstore):
+    arrived_file = os.path.join(config.STORAGESHARE,
+                                inputstore['current_storage_dir'],
+                                inputstore['mzml'])
+    print('Calculating MD5 for {}'.format(arrived_file))
+    hashmd5 = md5()
     try:
         with open(arrived_file, 'rb') as fp:
             for chunk in iter(lambda: fp.read(4096), b''):
                 hashmd5.update(chunk)
         dst_md5 = hashmd5.hexdigest()
     except:
-        # FIXME probably better to not retry? put in dead letter queue?
-        # usually when this task has probelsm it is usually related to network
+        print('MD5 calculation failed, check file location at {}'.format(arrived_file))
         self.retry(countdown=60)
-    if not dst_md5 == mzml_md5:
-        self.retry(countdown=60)
-        return
-    inputstore['mzml_md5'] = mzml_md5
-    inputstore['mzml_path'] = dst
-    print('done with {}'.format(inputstore['mzml']))
-    os.remove(mzmlfile)
-    return inputstore
+    print('MD5 for {} is {}'.format(arrived_file, dst_md5))
+    return dst_md5
 
 
-@app.task(bind=True, queue=config.QUEUE_CONVERSION)
+@app.task(bind=True, queue=config.QUEUE_PWIZ1)
 def tmp_convert_to_mzml(self, inputstore):
     if sys.platform.startswith("win"):
         # Don't display the Windows GPF dialog if the invoked program dies.
@@ -100,7 +112,7 @@ def cleanup_files(*files):
         os.remove(fpath)
 
 
-@app.task(queue=config.QUEUE_PWIZIO, bind=True)
+@app.task(queue=config.QUEUE_PWIZ1IO, bind=True)
 def copy_infile(self, inputstore):
     remote_file = os.path.join(inputstore['winshare'],
                                inputstore['current_storage_dir'],
@@ -117,6 +129,7 @@ def copy_infile(self, inputstore):
             pass
         print('{} -- WARNING, could not copy input {} to local '
               'disk'.format(e, dst))
+    print('Done copying file to local dumpdir')
     return inputstore
 
 
