@@ -393,6 +393,19 @@ def store_summary(self, inputstore):
     return inputstore
 
 
+@app.task(queue=config.QUEUE_STORAGE)
+def load_previous_inputstore(inputstore):
+    outpath_full = os.path.join(config.STORAGESHARE,
+                                '{}_results'.format(inputstore['user']),
+                                inputstore['outdir'])
+    with open(os.path.join(outpath_full,
+                           'workflow_{}'.format(inputstore['outdir']))) as fp:
+        inputstore['wf'] = {'uploaded': {'wf': json.load(fp)}}
+    with open(os.path.join(outpath_full, 'summary.json')) as fp:
+        inputstore['params'] = json.load(fp)['params']
+    return inputstore
+
+
 @app.task(queue=config.QUEUE_STORAGE, bind=True)
 def download_results(self, inputstore):
     """Downloads both zipped collections and normal datasets"""
