@@ -453,22 +453,30 @@ def remove_annotated_steps(wf_json, annot_or_name):
                 break
 
 
+def change_lvlone_toolstate(step, option, value):
+    ts = json.loads(step['tool_state'])
+    ts[option] = json.dumps(value)
+    step['tool_state'] = json.dumps(ts)
+
+
+def change_lvltwo_toolstate(step, levelone_key, subkey, value):
+    ts = json.loads(step['tool_state'])
+    sub_ts = json.loads(ts[levelone_key])
+    sub_ts[subkey] = value
+    ts[levelone_key] = json.dumps(sub_ts)
+    step['tool_state'] = json.dumps(ts)
+
+
 def set_level_one_option(wf_json, stepname, option, value):
     for step in wf_json['steps'].values():
         if step['name'] == stepname:
-            ts = json.loads(step['tool_state'])
-            ts[option] = json.dumps(value)
-            step['tool_state'] = json.dumps(ts)
+            change_lvlone_toolstate(step, option, value)
 
 
 def set_level_two_option(wf_json, stepname, levelone_key, subkey, value):
     for step in wf_json['steps'].values():
         if step['name'] == stepname:
-            ts = json.loads(step['tool_state'])
-            sub_ts = json.loads(ts[levelone_key])
-            sub_ts[subkey] = value
-            ts[levelone_key] = json.dumps(sub_ts)
-            step['tool_state'] = json.dumps(ts)
+            change_lvltwo_toolstate(step, levelone_key, subkey, value)
 
 
 def remove_protein_steps(wf_json):
