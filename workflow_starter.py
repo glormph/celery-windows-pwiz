@@ -641,20 +641,8 @@ def finalize_galaxy_workflow(raw_json, modtype, inputstore, timestamp, gi):
         specquant_wfjson = get_spectraquant_wf(inputstore)
         connect_specquant_workflow(specquant_wfjson, raw_json)
     wf_json = add_repeats_to_workflow_json(inputstore, raw_json)
-    if inputstore['wf']['dbtype'] != 'ensembl':
-        remove_biomart_symbol_steps(wf_json)
-    if modtype != 'proteingenessymbols':
-        remove_annotated_steps(wf_json, 'symbol table')
-    if modtype == 'proteins':
-        remove_gene_steps(wf_json)
-    if modtype == 'peptides proteincentric':
-        remove_gene_steps(wf_json)
-        remove_protein_steps(wf_json)
-    if modtype == 'peptides noncentric':
-        # FIXME
-        pass
-        #remove_gene_steps(wf_json)
-        #remove_protein_steps(wf_json)
+    if inputstore['wf']['searchtype'] == 'standard':
+        remove_post_peptide_steps(inputstore, wf_json, modtype)
     if inputstore['params']['multiplextype'] is None:
         if modtype in ['peptides noncentric', 'peptides proteincentric']:
             # FIXME the remove_iso_peptide is possibly wrong.
@@ -669,3 +657,43 @@ def finalize_galaxy_workflow(raw_json, modtype, inputstore, timestamp, gi):
     uploaded = gi.workflows.import_workflow_json(wf_json)
     inputstore['wf']['uploaded'][uploaded['id']] = wf_json
     return inputstore, uploaded['id']
+
+
+def subtract_column_xsetfdr(wf_json, amount_cols):
+    for step in wf_json['steps'].values():
+        if (get_stepname_or_annotation(step) == 'X-set protein table' and
+                step['label'] == 'Remove quant columns'):
+            state_dic = json.loads(step['tool_state'])
+            clist = json.loads(state_dic['columnList']).split('-')
+            lastcol = int(clist[1][1:]) - amount_cols
+            newclist = '{}-c{}'.format(clist[0], lastcol)
+            change_lvlone_toolstate(step, 'columnList', newclist)
+    for step in wf_json['steps'].values():
+        if (get_stepname_or_annotation(step) == 'X-set protein table' and
+                'Compute False Discovery Rate' in step['name']):
+            change_lvltwo_toolstate(step, 'decoy', 'decoy_column', lastcol + 1)
+            change_lvltwo_toolstate(step, 'score', 'score_column', lastcol - 5)
+        elif step['label'] in ['xset target labeler', 'xset decoy labeler']:
+            change_lvlone_toolstate(step, 'column', lastcol + 1)
+
+
+def remove_post_peptide_steps(inputstore, wf_json, modtype):
+    if inputstore['wf']['dbtype'] == 'ensembl':
+        return
+    else:
+        remove_biomart_symbol_steps(wf_json)
+    if modtype == 'proteingenessymbols':
+        return
+    else:
+        remove_annotated_steps(wf_json, 'symbol table')
+        subtract_column_xsetfdr(wf_json, 2)
+    if modtype == 'proteingenes':
+        return
+    else:
+        remove_gene_steps(wf_json)
+        subtract_column_xsetfdr(wf_json, 1)
+    if modtype == 'proteins':
+        return
+    else:
+        remove_protein_steps(wf_json)
+    # FIXME proteincentric peptide searches need a proteingroup though.
