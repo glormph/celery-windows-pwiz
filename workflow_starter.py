@@ -388,37 +388,40 @@ def connect_specquant_workflow(spec_wf_json, search_wf_json):
                                                       'quant lookup')
     remove_step_from_wf(qlookup_step_id, search_wf_json)
     # to make space for spec quant, change ID on all steps, and all connections
-    first_tool_stepnr = min([x['id'] for x in search_wf_json['steps'].values()
-                             if x['tool_id'] is not None])
-    if first_tool_stepnr > qlookup_step_id:
-        first_tool_stepnr -= 1
+    for step in search_wf_json['steps'].values():
+        if get_stepname_or_annotation(step) == 'reformatted spectra':
+            first_post_spec = step['id'] + 1
+            break
+    if first_post_spec > qlookup_step_id:
+        first_post_spec -= 1
     amount_spec_steps = len([step for step in spec_wf_json['steps'].values()
                              if step['tool_id'] is not None])
     newsteps = {}
     for step in search_wf_json['steps'].values():
-        if step['id'] >= first_tool_stepnr:
+        if step['id'] >= first_post_spec:
             step['id'] = step['id'] + amount_spec_steps
             for connection in step['input_connections'].values():
                 if type(connection) == list:
                     for multi_connection in connection:
-                        if multi_connection['id'] >= first_tool_stepnr:
+                        if multi_connection['id'] >= first_post_spec:
                             multi_connection['id'] = (multi_connection['id'] +
                                                       amount_spec_steps)
-                elif connection['id'] >= first_tool_stepnr:
+                elif connection['id'] >= first_post_spec:
                     connection['id'] = connection['id'] + amount_spec_steps
         newsteps[str(step['id'])] = step
     search_wf_json['steps'] = newsteps
     # Subtract 1 because we have removed an input step (quant lookup)
-    spec_step_id = get_input_dset_step_id_for_name(step_tool_states, 'spectra')
-    if spec_step_id > qlookup_step_id:
-        spec_step_id -= 1
+    for step in search_wf_json['steps'].values():
+        if get_stepname_or_annotation(step) == 'reformatted spectra':
+            spec_step_id = step['id']
+            break
     # Add spectra/quant steps, connect to spectra collection input
     for step in spec_wf_json['steps'].values():
         if step['tool_id'] is None:
             continue
-        step['id'] = step['id'] - 1 + first_tool_stepnr
+        step['id'] = step['id'] - 1 + first_post_spec
         for connection in step['input_connections'].values():
-            connection['id'] = connection['id'] - 1 + first_tool_stepnr
+            connection['id'] = connection['id'] - 1 + first_post_spec
         if 'spectra' in step['input_connections']:
             step['input_connections']['spectra']['id'] = spec_step_id
         elif 'ms1_in' in step['input_connections']:
