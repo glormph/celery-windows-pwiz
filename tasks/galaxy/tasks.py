@@ -25,8 +25,10 @@ def storage_copy_file(self, inputstore, number):
         'transfertype': 'copy',
         'dtype': 'mzml',
     }
-    dset = gi.tools.run_tool(inputstore['source_history'], 'locallink',
-                             tool_inputs=tool_inputs)
+    dset = gi.tools.run_tool(
+        inputstore['source_history'], 
+        'testtoolshed.g2.bx.psu.edu/repos/jorritb/lehtio_input_output/locallink/0.2',
+        tool_inputs=tool_inputs)
     state = dset['jobs'][0]['state']
     while state in ['new', 'queued', 'running']:
         sleep(10)
@@ -53,7 +55,8 @@ def misc_files_copy(self, inputstore, filelist):
         tool_inputs = {'folder': folder, 'filename': fn,
                        'transfertype': 'copy', 'dtype':
                        dsets[dset_name]['id'][1]}
-        dset = gi.tools.run_tool(inputstore['source_history'], 'locallink',
+        dset = gi.tools.run_tool(inputstore['source_history'],
+        'testtoolshed.g2.bx.psu.edu/repos/jorritb/lehtio_input_output/locallink/0.2',
                                  tool_inputs=tool_inputs)
         state = wait_for_copyjob(dset, gi)
         if state == 'ok':
@@ -91,7 +94,8 @@ def local_link_file(self, inputstore, number):
         'transfertype': 'link',
         'dtype': 'mzml',
     }
-    dset = gi.tools.run_tool(inputstore['source_history'], 'locallink',
+    dset = gi.tools.run_tool(inputstore['source_history'],
+        'testtoolshed.g2.bx.psu.edu/repos/jorritb/lehtio_input_output/locallink/0.2',
                              tool_inputs=tool_inputs)['outputs'][0]['id']
     print('File {} imported'.format(rawdata['filename']))
     rawdata['galaxy_id'] = dset[0]['id']
