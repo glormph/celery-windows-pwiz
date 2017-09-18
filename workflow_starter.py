@@ -216,6 +216,13 @@ def add_repeats_to_workflow_json(inputstore, wf_json):
     gi.workflows.export_workflow_json"""
     print('Updating set names and other repeats')
     params = inputstore['params']
+    strip_list_splitdb = json.dumps([
+        {'__index__': ix, 'intercept': strip['intercept'],
+         'fr_width': strip['fr_width'], 'peptable_pattern': strippat,
+         'tolerance': strip['pi_tolerance'], 'fr_amount': strip['fr_amount'],
+         'reverse': strip['reverse'], 'picutoff': 0.2}
+        for ix, (strip, strippat) in enumerate(zip(params['strips'],
+                                                   params['strippatterns']))])
     strip_list = json.dumps([{'__index__': ix, 'intercept': strip['intercept'],
                               'fr_width': strip['fr_width'],
                               'pattern': strippat} for ix, (strip, strippat) in
@@ -229,14 +236,24 @@ def add_repeats_to_workflow_json(inputstore, wf_json):
                                'set_name': setname} for ix, (setid, setname) in
                               enumerate(zip(params['setpatterns'],
                                             params['setnames']))])
+    if params['fdrclasses'] is not None:
+        print('Adding FDR classes to workflow')
+        fdrclass_set_list = json.dumps([{'__index__': ix, 'pool_identifier':
+                                         name} for ix, name in
+                                        enumerate(params['setfdrclasses'])])
+        fdrclass_list = [{'__index__': ix, 'pattern': pat} for ix, pat in
+                         enumerate(params['fdrclasses'])]
+        decoy_fdrclass_list = [{'__index__': ix, 'pattern': pat} for ix, pat in
+                               enumerate(params['decoy_fdrclasses'])]
     if params['multiplextype'] is not None:
         print('Making denomlist')
-        denom_list = [{'__index__': ix, 'setname': sd['setname'],
+        denom_list = [{'__index__': ix, 'setpattern': sd['setpattern'],
                        'denompatterns': sd['denoms']} for ix, sd in
                       enumerate(params['setdenominators'])]
     percin_input_stepids = set()
     # Add setnames to repeats, pi strips to delta-pi-calc
     for step in wf_json['steps'].values():
+        name_annot = get_stepname_or_annotation(step)
         state_dic = json.loads(step['tool_state'])
         if step['tool_id'] is None:
             continue
@@ -245,12 +262,12 @@ def add_repeats_to_workflow_json(inputstore, wf_json):
                 # also find decoy perco-in batch ID
                 percin_input_stepids.add(step['id'])
                 state_dic['poolids'] = ppool_list
+            elif 'varDB nest' in get_stepname_or_annotation(step):
+                state_dic['poolids'] = fdrclass_set_list
             else:
                 state_dic['poolids'] = set_list
-            step['tool_state'] = json.dumps(state_dic)
         elif 'msslookup_spectra' in step['tool_id']:
             state_dic['pools'] = lookup_list
-            step['tool_state'] = json.dumps(state_dic)
         elif (('create_protein_table' in step['tool_id'] or
                 'create_peptide_table' in step['tool_id']) and
               params['multiplextype'] is not None and
@@ -261,7 +278,17 @@ def add_repeats_to_workflow_json(inputstore, wf_json):
             step['tool_state'] = json.dumps(state_dic)
         elif 'calc_delta_pi' in step['tool_id']:
             state_dic['strips'] = strip_list
+        elif 'pi_db_split' in step['tool_id']:
+            state_dic['strips'] = strip_list_splitdb
+        elif 'varDB class splitter' in name_annot:
+            sp = json.loads(state_dic['splitter'])
+            if 'decoy' in name_annot:
+                sp['headers'] = decoy_fdrclass_list
+            else:
+                sp['headers'] = fdrclass_list
+            state_dic['splitter'] = json.dumps(sp)
             step['tool_state'] = json.dumps(state_dic)
+        step['tool_state'] = json.dumps(state_dic)
     return connect_percolator_in_steps(wf_json, percin_input_stepids)
 
 
