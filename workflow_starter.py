@@ -605,9 +605,9 @@ def run_workflow(inputstore, gi):
             modname, version, modtype = module[0], module[1], module[2]
             wf_mods['{}_{}'.format(modname, version)] = g_id
     miscfiles, runchain = [], []
-    if type(inputstore['datasets']['target db']['id']) == tuple:
-        miscfiles.append('target db')
-        miscfiles.append('decoy db')
+    for name, dset in inputstore['datasets'].items():
+        if dset['src'] == 'disk':
+            miscfiles.append(name)
     if miscfiles != []:
         runchain.extend([tasks.misc_files_copy.s(inputstore, miscfiles),
                          tasks.store_summary.s()])
