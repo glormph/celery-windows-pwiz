@@ -97,7 +97,10 @@ def parse_commandline(inputstore):
 
 
 def get_massshift(isobtype):
-    return {'tmt10plex': '0.0013',
+    return {
+        'tmt10plex': '0.0013',
+        'tmt6plex': '0.0013',
+        'itraq8plex': '0.0011',
             }[isobtype]
 
 
@@ -119,6 +122,10 @@ def get_msgf_inputs(params):
     elif params['multiplextype'][:5] == 'itraq' and not params['phospho']:
         print('iTRAQ detected')
         protocol = '2'
+        inputs['common_fixed_modifications'] = [
+            '304.205360_K_fix_any_iTRAQ8plex',
+            '304.205360_*_fix_N-term_iTRAQ8plex',
+        ]
     elif params['multiplextype'][:5] == 'itraq' and params['phospho']:
         print('iTRAQ phospho detected')
         protocol = '3'
