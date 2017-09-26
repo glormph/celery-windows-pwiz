@@ -38,6 +38,7 @@ def get_parser():
                         default=False, const=True)
     parser.add_argument('--galaxy-wf', dest='galaxy_wf')
     parser.add_argument('--wftype', dest='wftype', nargs='+')
+    parser.add_argument('--link', dest='link', default=False)
     parser.add_argument('--keepsource', dest='keep_source', default=False,
                         action='store_const', const=True)
     parser.add_argument('--qlookup', dest='quant_lookup')
@@ -141,6 +142,7 @@ def parse_commandline(inputstore):
         inputstore['raw'] = get_mzmls_from_files(args.sourcefiles)
     inputstore['base_searchname'] = args.searchname
     inputstore['wf_num'] = args.analysisnr
+    inputstore['copy_or_link'] = 'link' if args.link else 'copy'
 
 
 def parse_uploadable_files(datasets, name, filetype):

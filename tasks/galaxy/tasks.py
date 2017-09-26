@@ -22,11 +22,11 @@ def storage_copy_file(self, inputstore, number):
         'folder': os.path.join(config.GALAXY_STORAGE_MOUNTPATH,
                                rawdata['folder']),
         'filename': rawdata['filename'],
-        'transfertype': 'copy',
+        'transfertype': inputstore['copy_or_link'],
         'dtype': 'mzml',
     }
     dset = gi.tools.run_tool(
-        inputstore['source_history'], 
+        inputstore['source_history'],
         'testtoolshed.g2.bx.psu.edu/repos/jorritb/lehtio_input_output/locallink/0.2',
         tool_inputs=tool_inputs)
     state = dset['jobs'][0]['state']
