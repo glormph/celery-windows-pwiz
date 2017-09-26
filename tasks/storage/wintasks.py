@@ -20,7 +20,6 @@ OUTBOX = 'X:'
 
 @app.task(queue=config.QUEUE_PWIZ1_OUT, bind=True)
 def tmp_scp_storage(self, inputstore):
-    copy_infile(inputstore)
     mzmlfile = os.path.join(MZMLDUMPS, inputstore['mzml'])
     print('Got copy-to-storage command, calculating MD5 for file '
           '{}'.format(inputstore['mzml']))
@@ -75,6 +74,7 @@ def md5_check_arrived_file(self, inputstore):
 
 @app.task(bind=True, queue=config.QUEUE_PWIZ1)
 def tmp_convert_to_mzml(self, inputstore):
+    copy_infile(inputstore)
     if sys.platform.startswith("win"):
         # Don't display the Windows GPF dialog if the invoked program dies.
         # See comp.os.ms-windows.programmer.win32
