@@ -490,6 +490,8 @@ def remove_protein_steps(wf_json):
     set_level_one_option(wf_json, 'Process PSM table', 'proteingroup', 'false')
     set_level_two_option(wf_json, 'Merge peptide or protein tables',
                          'quants', 'centric', 'plain')
+    # Protein column for normalizing protein table is not master protein
+    set_level_one_option(wf_json, 'Create protein table', 'accessioncol', '12')
 
 
 def remove_gene_steps(wf_json):
@@ -674,8 +676,8 @@ def subtract_column_xsetfdr(wf_json, amount_cols):
     for step in wf_json['steps'].values():
         if (get_stepname_or_annotation(step) == 'X-set protein table' and
                 'Compute False Discovery Rate' in step['name']):
-            change_lvltwo_toolstate(step, 'decoy', 'decoy_column', lastcol + 1)
-            change_lvltwo_toolstate(step, 'score', 'score_column', lastcol - 5)
+            change_lvltwo_toolstate(step, 'decoy', 'decoy_column', str(lastcol + 1))
+            change_lvltwo_toolstate(step, 'score', 'score_column', str(lastcol - 5))
         elif step['label'] in ['xset target labeler', 'xset decoy labeler']:
             change_lvlone_toolstate(step, 'column', lastcol + 1)
 
