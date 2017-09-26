@@ -18,7 +18,7 @@ MZMLDUMPS = 'C:\\mzmldump'
 OUTBOX = 'X:'
 
 
-@app.task(queue=config.QUEUE_PWIZ1IO, bind=True)
+@app.task(queue=config.QUEUE_PWIZ1_OUT, bind=True)
 def tmp_scp_storage(self, inputstore):
     mzmlfile = os.path.join(MZMLDUMPS, inputstore['mzml'])
     print('Got copy-to-storage command, calculating MD5 for file '
@@ -112,7 +112,7 @@ def cleanup_files(*files):
         os.remove(fpath)
 
 
-@app.task(queue=config.QUEUE_PWIZ1IO, bind=True)
+@app.task(queue=config.QUEUE_PWIZ1_IN, bind=True)
 def copy_infile(self, inputstore):
     remote_file = os.path.join(inputstore['winshare'],
                                inputstore['current_storage_dir'],
