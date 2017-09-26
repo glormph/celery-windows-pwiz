@@ -1,99 +1,117 @@
 import sys
-import argparse
+from datetime import datetime
+import bioblend
 
-from tasks.galaxy import workflow_manage as wfmanage
 from tasks import config
 from tasks.galaxy import galaxydata
-
-from workflow_starter import prep_workflow, run_workflow
+from tasks.galaxy import util
+import fixtures
+from cli import parse_commandline, parse_special_inputs, show_pattern_matchers
+import workflow_starter as wfstarter
 
 
 TESTING_NO_CLEANUP = True
 
 
 def main():
-    inputstore, gi = prep_workflow(parse_commandline, parse_special_inputs)
-    if inputstore['user'] != config.ADMIN_USER:
-        inputstore = wfmanage.transfer_workflow_modules(inputstore)
-    run_workflow(inputstore, gi)
-
-
-def parse_commandline(inputstore):
-    parser = argparse.ArgumentParser(
-        formatter_class=argparse.RawTextHelpFormatter)
-    parser.add_argument('-u', dest='user')
-    parser.add_argument('--show', dest='show', action='store_const',
-                        default=False, const=True)
-    parser.add_argument('--test', dest='connectivity', action='store_const',
-                        default=False, const=True)
-    parser.add_argument('--reuse-history', dest='reuse_history')
-
-    parser.add_argument('-w', dest='analysisnr', type=int)
-    parser.add_argument('--sourcehists', dest='sourcehis', nargs='+')
-    parser.add_argument('--sortspectra', dest='sort_specfiles', default=None,
-                        action='store_const', const=True)
-    parser.add_argument('--name', dest='searchname')
-    parser.add_argument('--files-as-sets', dest='filesassets', default=False,
-                        action='store_const', const=True)
-
-    parser.add_argument('--setnames', dest='setnames', nargs='+')
-    parser.add_argument('--setpatterns', dest='setpatterns', nargs='+')
-    parser.add_argument('--isobtype', dest='multiplextype', default=None)
-    parser.add_argument('--phospho', dest='phospho', default=False,
-                        action='store_const', const=True)
-    parser.add_argument('--instrument', dest='instrument', default=None)
-    parser.add_argument('--mods', dest='modifications', nargs='+')
-    parser.add_argument('--denominators', dest='denominators', nargs='+')
-    parser.add_argument('--strips', dest='strips', nargs='+', help='Specify '
-                        'which strips have been used in split DB experiments '
-                        'where DBs are pI predicted')
-    parser.add_argument('--strippatterns', dest='strippatterns', nargs='+',
-                        help='Need to have same order as strips '
-                        'in --strips')
-    parser.add_argument('--frpattern', dest='fr_matcher',
-                        help='Use this regex pattern to match fraction number '
-                        'in filenames, for multiDB. E.g: .*fr([0-9][0-9]).*'
-                        )
-    parser.add_argument('--pipeptides', dest='pipeptides_db')
-    parser.add_argument('--pipeptides-known', dest='pipeptides_known_db')
-    parser.add_argument('--ppool-ids', dest='perco_ids', nargs='+')
-    parser.add_argument('--ppool-size', dest='ppoolsize', default=8)
-    parser.add_argument('--fastadelim', dest='fastadelim', type=str)
-    parser.add_argument('--genefield', dest='genefield', type=int)
-    parser.add_argument('--knownproteins', dest='knownpep_db')
-    args = parser.parse_args(sys.argv[1:])
-    inputstore['user'] = args.user
-    inputstore['apikey'] = config.USERS[args.user][1]
-    if args.show:
-        inputstore['run'] = 'show'
-    elif args.connectivity:
-        inputstore['run'] = 'connectivity'
+    # old: g_modules = {uuid: show_workflow}
+    # prep does not need show, that can be own function
+    # include in show also date/version/commit message for wfs.
+    # connectivity check, hmmmm
+    #
+    inputstore = {'params': {},
+                  'galaxy_url': config.GALAXY_URL,
+                  }
+    inputstore['datasets'] = wfstarter.initialize_datasets()
+    parse_commandline(inputstore)
+    if inputstore['run'] == 'show':
+        # display local modules
+        show()
+        return
+    inputstore['apikey'] = config.USERS[inputstore['user']][1]
+    gi = util.get_galaxy_instance(inputstore)
+    if inputstore['run'] == 'newuser':
+        util.create_user(inputstore)
+    elif inputstore['run'] == 'test':
+        test(inputstore, gi)
+    elif inputstore['run'] == 'connectivity':
+        pass
+        # do connectivity check on local modules
+        #wfmanage.check_workflow_mod_connectivity(galaxydata.workflows,
+        #inputstore, gi, dry_run=True)
     else:
-        inputstore['run'] = True
-    for name in (wfstarter.get_flatfile_names_inputstore() +
-                 wfstarter.get_collection_names_inputstore()):
-        parsename = name.replace(' ', '_')
-        if hasattr(args, parsename) and getattr(args, parsename) is not None:
-            inputstore['datasets'][name]['id'] = getattr(args, parsename)
-    if args.filesassets and (args.setnames is not None or
-                             args.setpatterns is not None):
-        print('Conflicting input, --files-as-sets has been passed but '
-              'also set definitions. Exiting.')
-        sys.exit(1)
-    for param in ['setnames', 'setpatterns', 'multiplextype', 'genefield',
-                  'perco_ids', 'ppoolsize', 'fastadelim', 'filesassets',
-                  'modifications', 'instrument', 'fr_matcher', 'phospho',
-                  'strips', 'strippatterns', 'sort_specfiles']:
-        inputstore['params'][param] = getattr(args, param)
-    if args.denominators is not None:
-        inputstore['params']['denominators'] = ' '.join(args.denominators)
-    if args.sourcedirs is not None:
-        inputstore['raw'] = get_mzmls_from_dirs(args.sourcedirs)
-    elif args.sourcefiles is not None:
-        inputstore['raw'] = get_mzmls_from_files(args.sourcefiles)
-    inputstore['base_searchname'] = args.searchname
-    inputstore['wf_num'] = args.analysisnr
-    inputstore['rerun_his'] = args.reuse_history
+        parse_special_inputs(inputstore, gi)
+        assign_inputs_tools(inputstore)
+        show_pattern_matchers(inputstore, gi)
+        inputstore['wf'] = wfstarter.get_workflows()[inputstore['wf_num']]
+        inputstore = wfstarter.check_required_inputs(inputstore, gi)
+        if not inputstore:
+            print('Errors encountered. Exiting.')
+            sys.exit(1)
+        inputstore = wfstarter.get_libdsets(inputstore, gi)
+        #if not wfstarter.check_workflow_mod_connectivity([inputstore['wf']],
+        #                                                 inputstore, gi):
+        #    print('Workflow connectivity is not validated, ERROR')
+        #    sys.exit(1)
+        wfstarter.run_workflow(inputstore, gi)
+
+
+def show():
+    print('-------------------- WORKFLOWS -------------')
+    for ix, wf in enumerate(galaxydata.workflows):
+        print(ix, wf['name'])
+    while True:
+        pick = input('Enter selection for more info: ')
+        if pick == '':
+            break
+        try:
+            pick = int(pick)
+        except ValueError:
+            print('Please enter a number corresponding to a dataset or '
+                  'enter')
+            continue
+        break
+    if pick != '':
+        print(galaxydata.workflows[pick])
+
+
+def test(inputstore, gi):
+    # FIXME think about what tests are needed
+    # - new workflow in galaxy test
+    # - check alll WFs in json with params test in case this code changes
+    """Download a base WF from galaxy, fill it in and upload
+    CLI inputs are
+    --galaxy-wf ID-OF-WF-TO-TEST-ON-GALAXY
+    --wftype [proteingenes, proteingenesymbols"""
+    inputstore['params'] = fixtures.UNIPROT_PARAMS
+    inputstore['wf'] = {'quanttype': 'isobaric', 'uploaded': {}}
+    failcount = 0
+    for wftype in inputstore['wftype']:
+        base_wf = gi.workflows.export_workflow_json(inputstore['galaxy_wf'])
+        print('--------------TESTING {} ---------'.format(wftype))
+        inputstore['searchname'] = 'TEST {} - {}'.format(base_wf['name'],
+                                                         wftype)
+        timest = datetime.strftime(datetime.now(), '%Y%m%d_%H.%M')
+        try:
+            inputstore, up_id = wfstarter.finalize_galaxy_workflow(base_wf,
+                                                                   wftype,
+                                                                   inputstore,
+                                                                   timest, gi)
+        except bioblend.ConnectionError:
+            failcount += 1
+            print('-------------- FAILURE ---------'.format(wftype))
+            print('Unsuccesful upload of finalized workflow {} using type '
+                  '{}'.format(base_wf['name'], wftype))
+        else:
+            print('-------------- SUCCESS ---------'.format(wftype))
+            print('OK - {} -- {} workflow ID {}'.format(base_wf['name'],
+                                                        wftype, up_id))
+    print('=============================')
+    if failcount:
+        print('{} failures, {} success'.format(
+            failcount, len(inputstore['wftype']) - failcount))
+    else:
+        print('ALL TESTS PASS')
 
 
 def get_massshift(isobtype):
@@ -167,31 +185,7 @@ def assign_inputs_tools(inputstore):
         'platepatterns': ' '.join(params['strippatterns'])})
     params['MS-GF+'] = get_msgf_inputs(params)
     params['Create nested list'] = {'batchsize': params['ppoolsize']}
-    params['FDR gene table'] = {}
-    for toolid in ['Create gene table', 'Create protein table',
-                   'Create symbol table', 'Create peptide table']:
-        params[toolid] = {'isoquant|denompatterns': params['denominators']}
-
-
-def parse_special_inputs(inputstore, gi):
-    """Command line interface has some special inputs. Strips, filesassets,
-    """
-    params = inputstore['params']
-    if params['filesassets']:
-        spectracollection = gi.histories.show_dataset_collection(
-            inputstore['history'], inputstore['datasets']['spectra']['id'])
-        sets = [x['object']['name'] for x in spectracollection['elements']]
-        params['setnames'] = sets
-        params['setpatterns'] = sets
-    if params['strips'] is not None:
-        #'strips': [{'intercept': 3.5959, 'fr_width': 0.0174, 'name': '3-10'},
-        #           {'intercept': 3.5478, 'fr_width': 0.0676}],
-        #'strippatterns': ['IEF_37-49', 'IEF_3-10']}}
-        params['strips'] = [galaxydata.strips[x] for x in params['strips']]
-    if params['fr_matcher'] is not None:
-        params['Get fraction numbers'] = {
-            'code': ('s/{}/\\1/;s/\#SpecFile/'
-                     'Fractions/'.format(params['fr_matcher']))}
+    params['FDR gene table'] = {}  # FIXME why
 
 
 if __name__ == '__main__':
