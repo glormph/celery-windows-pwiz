@@ -20,6 +20,7 @@ OUTBOX = 'X:'
 
 @app.task(queue=config.QUEUE_PWIZ1_OUT, bind=True)
 def tmp_scp_storage(self, inputstore):
+    copy_infile(inputstore)
     mzmlfile = os.path.join(MZMLDUMPS, inputstore['mzml'])
     print('Got copy-to-storage command, calculating MD5 for file '
           '{}'.format(inputstore['mzml']))
@@ -112,8 +113,7 @@ def cleanup_files(*files):
         os.remove(fpath)
 
 
-@app.task(queue=config.QUEUE_PWIZ1_IN, bind=True)
-def copy_infile(self, inputstore):
+def copy_infile(inputstore):
     remote_file = os.path.join(inputstore['winshare'],
                                inputstore['current_storage_dir'],
                                inputstore['raw'])
@@ -127,10 +127,9 @@ def copy_infile(self, inputstore):
         # windows specific error
         except FileNotFoundError:
             pass
-        print('{} -- WARNING, could not copy input {} to local '
-              'disk'.format(e, dst))
+        raise RuntimeError('{} -- WARNING, could not copy input {} to local '
+                           'disk'.format(e, dst))
     print('Done copying file to local dumpdir')
-    return inputstore
 
 
 def copy_outfile(outfile):

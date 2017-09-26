@@ -2,7 +2,6 @@ import os
 import sys
 import argparse
 from celery import chain
-from celery.result import AsyncResult
 
 from tasks import config
 import tasks.storage.wintasks as wt
@@ -14,13 +13,12 @@ def main():
     count = 0
     for directory in inputstore.pop('storage_directories'):
         inputstore['current_storage_dir'] = directory
-        in_directory = os.path.join(config.BALDRICK_STORAGE_MOUNTPATH, directory)
+        in_directory = os.path.join(config.BALDRICK_STORAGE_MOUNTPATH,
+                                    directory)
         rawfiles = get_files_directory(in_directory, 'raw')
         for fn in rawfiles:
             inputstore['raw'] = fn
-            win_rawfile = os.path.join(config.WIN_STORAGESHARE, directory, fn)
-            runchain = [wt.copy_infile.s(inputstore), 
-                        wt.tmp_convert_to_mzml.s(),
+            runchain = [wt.tmp_convert_to_mzml.s(inputstore),
                         wt.tmp_scp_storage.s()]
             ch = chain(runchain)
             res = ch.delay()
