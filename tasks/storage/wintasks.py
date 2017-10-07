@@ -98,7 +98,8 @@ def tmp_convert_to_mzml(self, inputstore):
                                creationflags=subprocess_flags)
     (stdout, stderr) = process.communicate()
     if process.returncode != 0 or not os.path.exists(resultpath):
-        raise RuntimeError('Error in running msconvert:\n{}'.format(stdout))
+        print('Error in running msconvert:\n{}'.format(stdout))
+        self.retry()
     try:
         check_mzml_integrity(resultpath)
     except RuntimeError as e:
