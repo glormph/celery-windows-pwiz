@@ -62,6 +62,10 @@ def get_parser():
                         action='store_const', const=True)
     parser.add_argument('--instrument', dest='instrument', default=None)
     parser.add_argument('--mods', dest='modifications', nargs='+')
+    parser.add_argument('--custmods', dest='custommods', nargs='+',
+                        help='Specify mass_STY*_fix/opt_pos_name, where name'
+                        'should be UNIMOD and pos one of n/c-term, '
+                        'protein-n/c-term, any')
     parser.add_argument('--setdenominators', dest='setdenominators', nargs='+',
                         help='Provide \'setname:denominators\', and include '
                         'the quote marks')
@@ -131,7 +135,8 @@ def parse_commandline(inputstore):
         sys.exit(1)
     for param in ['setnames', 'setpatterns', 'multiplextype', 'genefield',
                   'perco_ids', 'ppoolsize', 'fastadelim', 'filesassets',
-                  'modifications', 'instrument', 'fr_matcher', 'firstfrac',
+                  'modifications', 'custommods', 'instrument',
+                  'fr_matcher', 'firstfrac',
                   'phospho', 'fdrclasses', 'decoy_fdrclasses',
                   'strips', 'strippatterns', 'sort_specfiles', 'keep_source',
                   'setdenominators']:

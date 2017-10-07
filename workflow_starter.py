@@ -288,7 +288,16 @@ def add_repeats_to_workflow_json(inputstore, wf_json):
                 sp['headers'] = fdrclass_list
             state_dic['splitter'] = json.dumps(sp)
             step['tool_state'] = json.dumps(state_dic)
+        elif 'MS-GF+' in name_annot and params['custommods']:
+            custommods = json.dumps([
+                {'__index__': ix, 'formula_or_mass': mod['mass'],
+                 'aa_specificity': mod['aa'], 'fix_or_opt': mod['fo'],
+                 'position_specificity': mod['pos'], 'mod_name': mod['name']}
+                for ix, mod in enumerate(params['custommods'])])
+            state_dic['custom_mods'] = custommods
+            print(state_dic)
         step['tool_state'] = json.dumps(state_dic)
+
     return connect_percolator_in_steps(wf_json, percin_input_stepids)
 
 

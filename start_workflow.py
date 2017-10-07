@@ -157,12 +157,20 @@ def get_msgf_inputs(params):
     modifications = {'carba': 'C2H3N1O1_C_fix_any_Carbamidomethyl',
                      'ox': 'O1_M_opt_any_Oxidation',
                      }
+    if params['custommods']:
+        mods = []
+        for mod in params['custommods']:
+            mod = mod.split('_')
+            mods.append({'mass': mod[0], 'aa': list(mod[1]), 'fo': mod[2],
+                         'pos': mod[3], 'name': mod[4]})
+        params['custommods'] = mods
+        print(params['custommods'])
     for inmod in params['modifications']:
         try:
             mod = modifications[inmod]
         except KeyError:
-            raise RuntimeError('Only pass modifications "carba", "ox", or '
-                               'update this code')
+            raise RuntimeError('Only pass modifications {} or update this code'
+                               ''.format(', '.join(modifications.keys())))
         modtype = mod.split('_')[2]
         if modtype == 'fix':
             inputs['common_fixed_modifications'].append(mod)
