@@ -72,11 +72,13 @@ def get_library_dset(gi, lib_dset_name):
     # FIXME this is a CLI thing
     dset_names_libname = {'target db': 'databases',
                           'decoy db': 'databases',
-                          'knownpep db': 'databases',
+                          'knownpep db': 'knownpeptides',
+                          'knownpep db decoy': 'knownpeptides',
                           'knownpep allpep lookup': 'lookups',
                           'knownpep tryp lookup': 'lookups',
                           'biomart map': 'marts',
                           'knownpep predpi tabular': 'pipeptides',
+                          'pipeptides db': 'pipeptides',
                           }
     libtype = dset_names_libname[lib_dset_name]
     dsets = gi.libraries.show_library(galaxydata.libraries[libtype],
