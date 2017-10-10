@@ -168,9 +168,11 @@ def parse_special_inputs(inputstore, gi):
                                       'denoms': x.split(':')[1]}
                                      for x in params['setdenominators']]
     if params['filesassets']:
-        spectracollection = gi.histories.show_dataset_collection(
-            inputstore['history'], inputstore['datasets']['spectra']['id'])
-        sets = [x['object']['name'] for x in spectracollection['elements']]
+        print('Using files as sets')
+        sets = [x['filename'].replace('-', '_') for x in inputstore['raw']]
+        if not len(sets):
+            raise RuntimeError('Cannot use files-as-sets when no filenames'
+                               'have been entered')
         params['setnames'] = sets
         params['setpatterns'] = sets
     if params['perco_ids'] is None:
