@@ -693,8 +693,10 @@ def subtract_column_xsetfdr(wf_json, amount_cols):
     for step in wf_json['steps'].values():
         if (get_stepname_or_annotation(step) == 'X-set protein table' and
                 'Compute False Discovery Rate' in step['name']):
-            change_lvltwo_toolstate(step, 'decoy', 'decoy_column', str(lastcol + 1))
-            change_lvltwo_toolstate(step, 'score', 'score_column', str(lastcol - 5))
+            change_lvltwo_toolstate(step, 'decoy', 'decoy_column',
+                                    str(lastcol + 1))
+            change_lvltwo_toolstate(step, 'score', 'score_column',
+                                    str(lastcol - 5))
         elif step['label'] in ['xset target labeler', 'xset decoy labeler']:
             change_lvlone_toolstate(step, 'column', lastcol + 1)
 
@@ -708,12 +710,14 @@ def remove_post_peptide_steps(inputstore, wf_json, modtype):
         return
     else:
         remove_annotated_steps(wf_json, 'symbol table')
-        subtract_column_xsetfdr(wf_json, 2)
     if modtype == 'proteingenes':
+        # e.g. uniprot still has columns for symbol but NA
         return
     else:
         remove_gene_steps(wf_json)
-        subtract_column_xsetfdr(wf_json, 1)
+        # subtract 3 columns since proteincentric (no fasta parsing/biomart)
+        # columns: description, symbol, gene
+        subtract_column_xsetfdr(wf_json, 3)
     if modtype == 'proteins':
         return
     else:
