@@ -460,7 +460,8 @@ def remove_annotated_steps(wf_json, annot_or_name):
         for step in wf_json['steps'].values():
             stepname = get_stepname_or_annotation(step)
             if annot_or_name in stepname:
-                remove_step_from_wf(step['id'], wf_json, remove_connections=True)
+                remove_step_from_wf(step['id'], wf_json,
+                                    remove_connections=True)
                 stepfound = True
                 break
 
@@ -525,8 +526,11 @@ def remove_biomart_symbol_steps(wf_json):
 
 
 def remove_step_from_wf(removestep_id, wf_json, remove_connections=False):
-    """Removes a step, subtracts one from all step IDs after it, including
-    input connections"""
+    """Removes a step, subtracts one from all step IDs after it, also resetting
+    input connections step IDs. If remove_connections is True, this deletes
+    the connections that represent the removestep_id from other steps in the
+    workflow. Set to True in case the removestep is not a Galaxy "input step"
+    """
     del(wf_json['steps'][str(removestep_id)])
     newsteps = {}
     for step in wf_json['steps'].values():
@@ -569,26 +573,29 @@ def disable_isobaric_params(wf_json):
         set_level_two_option(stepname, 'isoquant', 'yesno', 'false')
 
 
-def remove_isobaric_from_peptide_centric(wf_json):
+def remove_isobaric_vardb6rf(wf_json, searchtype):
+    # FIXME untested! This removes ENS-search-normalization PSMs input but that
+    # should be done on normalization protein steps too!
+    # There is possibly more to delete. Check it.
+    # THIS IS FOR LABELFREE 6RF/VARDB
+    # in 6RF psm normalsearch is also for shift of peptides, so do not remove
+    # normalsearch table step
     disable_isobaric_params(wf_json)
     step_toolstates = get_step_tool_states(wf_json)
-    psmstep = get_input_dset_step_id_for_name(step_toolstates,
-                                              'PSM table target normalsearch')
-    for step in wf_json['steps'].values():
-        if (step['name'] == 'Split tabular data' and
-                step['input_connections']['input']['id'] == psmstep):
-            remove_step_from_wf(step['id'], wf_json)
-            break
-    remove_step_from_wf(psmstep, wf_json)
+    remove_annotated_steps(wf_json,
+                           'Normalization protein isobaric ratio table')
+    if searchtype == 'vardb':
+        # need psmstep for pI shift in 6RF WF
+        psmstep = get_input_dset_step_id_for_name(step_toolstates,
+                                                  'psm table normalsearch')
+        remove_step_from_wf(psmstep, wf_json)
 
 
 def remove_isobaric_from_protein_centric(wf_json):
     # Remove normalize generating step
-    for step in wf_json['steps'].values():
-        stepname = get_stepname_or_annotation(step)
-        if stepname.strip() == 'Normalization protein isobaric ratio table':
-            remove_step_from_wf(step['id'], wf_json)
-            break
+    # FIXME test with labelfree
+    remove_annotated_steps(wf_json,
+                           'Normalization protein isobaric ratio table')
     disable_isobaric_params(wf_json)
 
 
@@ -658,11 +665,12 @@ def finalize_galaxy_workflow(raw_json, modtype, inputstore, timestamp, gi):
     if inputstore['wf']['searchtype'] == 'standard':
         remove_post_peptide_steps(inputstore, wf_json, modtype)
     if inputstore['params']['multiplextype'] is None:
-        if modtype in ['peptides noncentric', 'peptides proteincentric']:
-            # FIXME the remove_iso_peptide is possibly wrong.
-            remove_isobaric_from_peptide_centric(wf_json)
-        if modtype in ['proteingenessymbols', 'proteingenes', 'proteins']:
+        if inputstore['wf']['searchtype'] == 'standard':
             remove_isobaric_from_protein_centric(wf_json)
+        elif inputstore['wf']['searchtype'] in ['vardb', '6rf']:
+            # FIXME the remove_iso_peptide is untested, wait for labelfree
+            # vardb/6rf or labelfree peptide only
+            remove_isobaric_vardb6rf(wf_json, inputstore['wf']['searchtype'])
     print('Filling in runtime values...')
     for step in wf_json['steps'].values():
         fill_runtime_params(step, inputstore['params'])
