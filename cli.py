@@ -173,6 +173,9 @@ def parse_special_inputs(inputstore, gi):
         sets = [x['object']['name'] for x in spectracollection['elements']]
         params['setnames'] = sets
         params['setpatterns'] = sets
+    if params['perco_ids'] is None:
+        print('No perco IDS entered, using setpatterns')
+        params['perco_ids'] = params['setpatterns']
     if params['strips'] is not None:
         #'strips': [{'intercept': 3.5959, 'fr_width': 0.0174, 'name': '3-10'},
         #           {'intercept': 3.5478, 'fr_width': 0.0676}],
