@@ -218,18 +218,24 @@ def add_repeats_to_workflow_json(inputstore, wf_json):
     gi.workflows.export_workflow_json"""
     print('Updating set names and other repeats')
     params = inputstore['params']
-    strip_list_splitdb = json.dumps([
-        {'__index__': ix, 'intercept': strip['intercept'],
-         'fr_width': strip['fr_width'], 'peptable_pattern': strippat,
-         'tolerance': strip['pi_tolerance'], 'fr_amount': strip['fr_amount'],
-         'reverse': strip['reverse'], 'picutoff': 0.2}
-        for ix, (strip, strippat) in enumerate(zip(params['strips'],
-                                                   params['strippatterns']))])
-    strip_list = json.dumps([{'__index__': ix, 'intercept': strip['intercept'],
-                              'fr_width': strip['fr_width'],
-                              'pattern': strippat} for ix, (strip, strippat) in
-                             enumerate(zip(params['strips'],
-                                           params['strippatterns']))])
+    has_strips = False
+    if params['strippatterns'] is not None:
+        has_strips = True
+        strip_list_splitdb = json.dumps([
+            {'__index__': ix, 'intercept': strip['intercept'],
+             'fr_width': strip['fr_width'], 'peptable_pattern': strippat,
+             'tolerance': strip['pi_tolerance'],
+             'fr_amount': strip['fr_amount'], 'reverse': strip['reverse'],
+             'picutoff': 0.2}
+            for ix, (strip, strippat) in enumerate(
+                zip(params['strips'], params['strippatterns']))])
+        strip_list = json.dumps([{'__index__': ix,
+                                  'intercept': strip['intercept'],
+                                  'fr_width': strip['fr_width'],
+                                  'pattern': strippat}
+                                 for ix, (strip, strippat) in
+                                 enumerate(zip(params['strips'],
+                                               params['strippatterns']))])
     ppool_list = json.dumps([{'__index__': ix, 'pool_identifier': name}
                              for ix, name in enumerate(params['perco_ids'])])
     set_list = json.dumps([{'__index__': ix, 'pool_identifier': name}
@@ -278,9 +284,9 @@ def add_repeats_to_workflow_json(inputstore, wf_json):
             iq['setdenoms'] = denom_list
             state_dic['isoquant'] = json.dumps(iq)
             step['tool_state'] = json.dumps(state_dic)
-        elif 'calc_delta_pi' in step['tool_id']:
+        elif 'calc_delta_pi' in step['tool_id'] and has_strips:
             state_dic['strips'] = strip_list
-        elif 'pi_db_split' in step['tool_id']:
+        elif 'pi_db_split' in step['tool_id'] and has_strips:
             state_dic['strips'] = strip_list_splitdb
         elif 'varDB class splitter' in name_annot:
             sp = json.loads(state_dic['splitter'])
@@ -657,6 +663,38 @@ def run_workflow(inputstore, gi):
     runchain.append(tasks.download_results.s())
     res = chain(*runchain)
     res.delay()
+    print('Queued')
+
+
+def remove_ipg_steps(wfjson):
+    print('Adjusting for non-IPG data')
+    # remove unneccesary steps
+    remove_annotated_steps(wfjson, 'IPG-deltapi')
+    remove_annotated_steps(wfjson, 'Get fraction numbers')
+    step_tool_states = get_step_tool_states(wfjson)
+    knownpep_step = get_input_dset_step_id_for_name(step_tool_states,
+                                                    'knownpep predpi tabular')
+    remove_step_from_wf(knownpep_step, wfjson)
+    # make process psm table target have an out:psm table target
+    for step in wfjson['steps'].values():
+        if (get_stepname_or_annotation(step) == 'Process PSM table' and
+                'decoy' not in str(step['label'])):
+            break
+    pja = {'RenameDatasetActionoutput': {'action_arguments': {
+        'newname': 'out: psm table target.txt'}, 'action_type':
+        'RenameDatasetAction', 'output_name': 'output'}}
+    step['post_job_actions'].update(pja)
+    psm_table_stepid = step['id']
+    # connect that with split tabular (annot: split psm target)
+    for step in wfjson['steps'].values():
+        name_anno = get_stepname_or_annotation(step)
+        if name_anno == 'split psm target':
+            step['input_connections']['input'] = {'id': psm_table_stepid,
+                                                  'output_name': 'output'}
+        elif name_anno == 'msstitch QC':
+            step['input_connections']['psmtable'] = {'id': psm_table_stepid,
+                                                     'output_name': 'output'}
+
 
 
 def finalize_galaxy_workflow(raw_json, modtype, inputstore, timestamp, gi):
@@ -664,6 +702,8 @@ def finalize_galaxy_workflow(raw_json, modtype, inputstore, timestamp, gi):
         specquant_wfjson = get_spectraquant_wf(inputstore)
         connect_specquant_workflow(specquant_wfjson, raw_json)
     wf_json = add_repeats_to_workflow_json(inputstore, raw_json)
+    if inputstore['params']['fr_matcher'] is None:
+        remove_ipg_steps(wf_json)
     if inputstore['wf']['searchtype'] == 'standard':
         remove_post_peptide_steps(inputstore, wf_json, modtype)
     if inputstore['params']['multiplextype'] is None:

@@ -264,7 +264,7 @@ def show_pattern_matchers(inputstore, gi):
                 found_set = set_pat
         if not found_set:
             print('WARNING, no set found for file {}'.format(fn))
-        if len(params['strippatterns']) > 0:
+        if params['strippatterns'] is not None:
             for plate_pat in params['strippatterns']:
                 print(plate_pat, fn)
                 if re.match('.*{}.*'.format(plate_pat), fn):

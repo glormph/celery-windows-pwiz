@@ -181,16 +181,18 @@ def get_msgf_inputs(params):
 
 def assign_inputs_tools(inputstore):
     params = inputstore['params']
+    qcparams = {}
     if params['multiplextype'] is not None:
         params['IsobaricAnalyzer'] = {'param_extraction_reporter_mass_shift':
                                       get_massshift(params['multiplextype']),
                                       'param_type': params['multiplextype']}
-        params['msstitch QC'] = {'isobaric': 'true'}
+        qcparams = {'isobaric': 'true'}
     else:
-        params['msstitch QC'] = {'isobaric': 'false'}
-    params['msstitch QC'].update({
-        'setnames': ' '.join(params['setnames']),
-        'platepatterns': ' '.join(params['strippatterns'])})
+        qcparams = {'isobaric': 'false'}
+    qcparams['setnames'] = ' '.join(params['setnames'])
+    if params['strippatterns'] is not None:
+        qcparams['platepatterns'] = ' '.join(params['strippatterns'])
+    params['msstitch QC'] = qcparams
     params['MS-GF+'] = get_msgf_inputs(params)
     params['Create nested list'] = {'batchsize': params['ppoolsize']}
     params['FDR gene table'] = {}  # FIXME why
