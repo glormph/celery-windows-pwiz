@@ -578,7 +578,7 @@ def disable_isobaric_params(wf_json):
                          'nopsmcolpattern', '')
     for stepname in ['Create peptide table', 'Create protein table',
                      'Create gene table', 'Create symbol table']:
-        set_level_two_option(stepname, 'isoquant', 'yesno', 'false')
+        set_level_two_option(wf_json, stepname, 'isoquant', 'yesno', 'false')
 
 
 def remove_isobaric_vardb6rf(wf_json, searchtype):
@@ -600,8 +600,6 @@ def remove_isobaric_vardb6rf(wf_json, searchtype):
 
 
 def remove_isobaric_from_protein_centric(wf_json):
-    # Remove normalize generating step
-    # FIXME test with labelfree
     remove_annotated_steps(wf_json,
                            'Normalization protein isobaric ratio table')
     disable_isobaric_params(wf_json)
