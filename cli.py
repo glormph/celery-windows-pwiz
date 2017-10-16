@@ -190,8 +190,7 @@ def parse_special_inputs(inputstore, gi):
                                            for sm in params['setpatterns']])}
     if params['fr_matcher'] is not None:
         params['Get fraction numbers'] = {
-            'code': ('s/{}/\\1/;s/\#SpecFile/'
-                     'Fractions/'.format(params['fr_matcher']))}
+            'code': ('s/{}/\\1/'.format(params['fr_matcher']))}
         if params['firstfrac'] is not None:
             params['Align DB fractions'] = {'frspec': params['fr_matcher'],
                                             'firstfr': params['firstfrac']}
