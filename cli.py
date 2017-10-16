@@ -169,7 +169,8 @@ def parse_special_inputs(inputstore, gi):
                                      for x in params['setdenominators']]
     if params['filesassets']:
         print('Using files as sets')
-        sets = [x['filename'].replace('-', '_') for x in inputstore['raw']]
+        sets = [x['filename'].replace('-', '_').replace('.mzML', '')
+                for x in inputstore['raw']]
         if not len(sets):
             raise RuntimeError('Cannot use files-as-sets when no filenames'
                                'have been entered')
