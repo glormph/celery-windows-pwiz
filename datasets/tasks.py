@@ -2,13 +2,13 @@ import os
 import sys
 import shutil
 import requests
+import hashlib
 import subprocess
 from time import sleep
 from urllib.parse import urljoin
 
 from tasks import config
 from celeryapp import app
-from rawstatus import tasks as rstasks
 
 PROTEOWIZ_LOC = ('C:\Program Files\ProteoWizard\ProteoWizard '
                  '3.0.11336\msconvert.exe')
@@ -78,7 +78,7 @@ def convert_to_mzml(self, fn, fnpath, servershare):
 def scp_storage(self, mzmlfile, rawfn_id, dsetdir, servershare, reporturl):
     print('Got copy-to-storage command, calculating MD5 for file '
           '{}'.format(mzmlfile))
-    mzml_md5 = rstasks.calc_md5(mzmlfile)
+    mzml_md5 = calc_md5(mzmlfile)
     print('Copying mzML file {} with md5 {} to storage'.format(
         mzmlfile, mzml_md5))
     storeserver = config.SHAREMAP[servershare]
@@ -127,6 +127,14 @@ def copy_infile(remote_file):
         raise RuntimeError('{} -- WARNING, could not copy input {} to local '
                            'disk'.format(e, dst))
     print('Done copying file to local dumpdir')
+
+
+def calc_md5(fnpath):
+    hash_md5 = hashlib.md5()
+    with open(fnpath, 'rb') as fp:
+        for chunk in iter(lambda: fp.read(4096), b''):
+            hash_md5.update(chunk)
+    return hash_md5.hexdigest()
 
 
 def check_mzml_integrity(mzmlfile):
