@@ -7,7 +7,7 @@ import subprocess
 from time import sleep
 from urllib.parse import urljoin
 
-from tasks import config
+import config
 from celeryapp import app
 
 PROTEOWIZ_LOC = ('C:\Program Files\ProteoWizard\ProteoWizard '
@@ -30,16 +30,17 @@ def update_db(url, postdata, msg=False):
         raise RuntimeError(msg)
 
 
-@app.task(bind=True, queue=config.QUEUE_SCPMD5)
+@app.task(bind=True, queue=config.QUEUE_STORAGE)
 def md5_check_arrived_file(self, fnpath, servershare):
     """This will run on remote in other repo so there is no need to be no code
     in here, the task is an empty shell with only the task name"""
     return True
 
 
-@app.task(queue=config.QUEUE_PWIZ1_OUT, bind=True)
+@app.task(queue=config.QUEUE_PWIZ1, bind=True)
 def convert_to_mzml(self, fn, fnpath, servershare):
     fullpath = os.path.join(config.SHAREMAP[servershare], fnpath, fn)
+    print('Received conversion command for file {0}'.format(fullpath))
     copy_infile(fullpath)
     if sys.platform.startswith("win"):
         # Don't display the Windows GPF dialog if the invoked program dies.
@@ -52,7 +53,6 @@ def convert_to_mzml(self, fn, fnpath, servershare):
         subprocess_flags = 0x8000000  # win32con.CREATE_NO_WINDOW?
     else:
         subprocess_flags = 0
-    print('Received conversion command for file {0}'.format(fullpath))
     infile = os.path.join(RAWDUMPS, os.path.basename(fullpath))
     resultpath = os.path.join(
         MZMLDUMPS, os.path.splitext(os.path.basename(fullpath))[0] + '.mzML')
@@ -81,9 +81,9 @@ def scp_storage(self, mzmlfile, rawfn_id, dsetdir, servershare, reporturl):
     mzml_md5 = calc_md5(mzmlfile)
     print('Copying mzML file {} with md5 {} to storage'.format(
         mzmlfile, mzml_md5))
-    storeserver = config.SHAREMAP[servershare]
-    dstfolder = os.path.join(storeserver, dsetdir.replace('\\', '/'))
-    dst = '{}@{}:{}'.format(config.SCP_LOGIN, storeserver, dstfolder)
+    storeserver = config.STORAGESERVER
+    dstserver = os.path.join(storeserver, dsetdir).replace('\\', '/')
+    dst = '{}@{}'.format(config.SCP_LOGIN, dstserver)
     try:
         subprocess.check_call([PSCP_LOC, '-i', config.PUTTYKEY, mzmlfile, dst])
     except:
@@ -93,7 +93,7 @@ def scp_storage(self, mzmlfile, rawfn_id, dsetdir, servershare, reporturl):
         self.retry(countdown=60)
     print('Copied file, checking MD5 remotely using nested task')
     md5res = md5_check_arrived_file.delay(
-        os.path.join(dsetdir, os.path.basename(mzmlfile)), servershare)
+        os.path.join(dsetdir, os.path.basename(mzmlfile)).replace('\\', '/'), servershare)
     while not md5res.ready():
         sleep(30)
     dst_md5 = md5res.get()
@@ -103,13 +103,14 @@ def scp_storage(self, mzmlfile, rawfn_id, dsetdir, servershare, reporturl):
         self.retry(countdown=60)
     postdata = {'rawfile_id': rawfn_id, 'task': self.request.id, 'md5': dst_md5,
                 'servershare': servershare, 'path': dsetdir,
+                'filename': os.path.basename(mzmlfile),
                 'client_id': config.APIKEY}
     url = urljoin(config.KANTELEHOST, reporturl)
     try:
         update_db(url, postdata)
     except RuntimeError:
         self.retry()
-    print('done and removing local file {}'.format(mzmlfile))
+    print('SCP copy done and removing local file {}'.format(mzmlfile))
     os.remove(mzmlfile)
 
 
