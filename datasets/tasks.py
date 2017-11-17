@@ -7,7 +7,7 @@ import subprocess
 from time import sleep
 from urllib.parse import urljoin
 
-import config
+from datasets import config
 from celeryapp import app
 
 PROTEOWIZ_LOC = ('C:\Program Files\ProteoWizard\ProteoWizard '
@@ -68,6 +68,7 @@ def convert_to_mzml(self, fn, fnpath, servershare):
     try:
         check_mzml_integrity(resultpath)
     except RuntimeError as e:
+        print('Integrity check failed', e)
         cleanup_files(infile, resultpath)
         self.retry(exc=e)
     cleanup_files(infile)
@@ -86,7 +87,8 @@ def scp_storage(self, mzmlfile, rawfn_id, dsetdir, servershare, reporturl):
     dst = '{}@{}'.format(config.SCP_LOGIN, dstserver)
     try:
         subprocess.check_call([PSCP_LOC, '-i', config.PUTTYKEY, mzmlfile, dst])
-    except:
+    except Exception as e:
+        print(e)
         # FIXME probably better to not retry? put in dead letter queue?
         # usually when this task has probelsm it is usually related to network
         # or corrupt file, both of which are not nice to retry
