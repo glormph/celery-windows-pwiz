@@ -76,7 +76,7 @@ def convert_to_mzml(self, fn, fnpath, servershare):
 
 
 @app.task(queue=config.QUEUE_PWIZ1_OUT, bind=True)
-def scp_storage(self, mzmlfile, rawfn_id, dsetdir, servershare, reporturl):
+def scp_storage(self, mzmlfile, sf_id, dsetdir, servershare, reporturl):
     print('Got copy-to-storage command, calculating MD5 for file '
           '{}'.format(mzmlfile))
     mzml_md5 = calc_md5(mzmlfile)
@@ -103,9 +103,7 @@ def scp_storage(self, mzmlfile, rawfn_id, dsetdir, servershare, reporturl):
         print('Destination MD5 {} is not same as source MD5 {}. Retrying in 60 '
               'seconds'.format(dst_md5, mzml_md5))
         self.retry(countdown=60)
-    postdata = {'rawfile_id': rawfn_id, 'task': self.request.id, 'md5': dst_md5,
-                'servershare': servershare, 'path': dsetdir,
-                'filename': os.path.basename(mzmlfile),
+    postdata = {'sfid': sf_id, 'task': self.request.id, 'md5': dst_md5,
                 'client_id': config.APIKEY}
     url = urljoin(config.KANTELEHOST, reporturl)
     try:
