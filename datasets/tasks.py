@@ -17,6 +17,11 @@ RAWDUMPS = 'C:\\rawdump'
 MZMLDUMPS = 'C:\\mzmldump'
 
 
+def fail_update_db(failurl, task_id):
+    url = urljoin(config.KANTELEHOST, failurl)
+    update_db(url, {'task': task_id, 'client_id': config.APIKEY})
+
+
 def update_db(url, postdata, msg=False):
     try:
         r = requests.post(url=url, data=postdata, verify=config.CERTFILE)
@@ -38,7 +43,7 @@ def md5_check_arrived_file(self, fnpath, servershare):
 
 
 @app.task(queue=config.QUEUE_PWIZ1, bind=True)
-def convert_to_mzml(self, fn, fnpath, servershare):
+def convert_to_mzml(self, fn, fnpath, servershare, failurl):
     fullpath = os.path.join(config.SHAREMAP[servershare], fnpath, fn)
     print('Received conversion command for file {0}'.format(fullpath))
     copy_infile(fullpath)
@@ -64,19 +69,21 @@ def convert_to_mzml(self, fn, fnpath, servershare):
     (stdout, stderr) = process.communicate()
     if process.returncode != 0 or not os.path.exists(resultpath):
         print('Error in running msconvert:\n{}'.format(stdout))
-        self.retry()
+        fail_update_db(failurl, self.request.id)
+        raise RuntimeError
     try:
         check_mzml_integrity(resultpath)
     except RuntimeError as e:
         print('Integrity check failed', e)
         cleanup_files(infile, resultpath)
-        self.retry(exc=e)
+        fail_update_db(failurl, self.request.id)
+        raise
     cleanup_files(infile)
     return resultpath
 
 
 @app.task(queue=config.QUEUE_PWIZ1_OUT, bind=True)
-def scp_storage(self, mzmlfile, sf_id, dsetdir, servershare, reporturl):
+def scp_storage(self, mzmlfile, sf_id, dsetdir, servershare, reporturl, failurl):
     print('Got copy-to-storage command, calculating MD5 for file '
           '{}'.format(mzmlfile))
     mzml_md5 = calc_md5(mzmlfile)
@@ -88,21 +95,23 @@ def scp_storage(self, mzmlfile, sf_id, dsetdir, servershare, reporturl):
     try:
         subprocess.check_call([PSCP_LOC, '-i', config.PUTTYKEY, mzmlfile, dst])
     except Exception as e:
-        print(e)
-        # FIXME probably better to not retry? put in dead letter queue?
-        # usually when this task has probelsm it is usually related to network
-        # or corrupt file, both of which are not nice to retry
-        self.retry(countdown=60)
+        fail_update_db(failurl, self.request.id)
+        raise
     print('Copied file, checking MD5 remotely using nested task')
     md5res = md5_check_arrived_file.delay(
         os.path.join(dsetdir, os.path.basename(mzmlfile)).replace('\\', '/'), servershare)
     while not md5res.ready():
         sleep(30)
-    dst_md5 = md5res.get()
+    try:
+        dst_md5 = md5res.get()
+    except Exception:
+        fail_update_db(failurl, self.request.id)
+        raise
     if not dst_md5 == mzml_md5:
         print('Destination MD5 {} is not same as source MD5 {}. Retrying in 60 '
               'seconds'.format(dst_md5, mzml_md5))
-        self.retry(countdown=60)
+        fail_update_db(failurl, self.request.id)
+        raise RuntimeError
     postdata = {'sfid': sf_id, 'task': self.request.id, 'md5': dst_md5,
                 'client_id': config.APIKEY}
     url = urljoin(config.KANTELEHOST, reporturl)
