@@ -43,7 +43,7 @@ def md5_check_arrived_file(self, fnpath, servershare):
 
 
 @app.task(queue=config.QUEUE_PWIZ1, bind=True)
-def convert_to_mzml(self, fn, fnpath, servershare, failurl):
+def convert_to_mzml(self, fn, fnpath, servershare, reporturl, failurl):
     fullpath = os.path.join(config.SHAREMAP[servershare], fnpath, fn)
     print('Received conversion command for file {0}'.format(fullpath))
     copy_infile(fullpath)
@@ -79,6 +79,13 @@ def convert_to_mzml(self, fn, fnpath, servershare, failurl):
         fail_update_db(failurl, self.request.id)
         raise
     cleanup_files(infile)
+    postdata = {'task': self.request.id, 'client_id': config.APIKEY}
+    url = urljoin(config.KANTELEHOST, reporturl)
+    try:
+        update_db(url, postdata)
+    except RuntimeError:
+        self.retry()
+    print('Mzmml convert subtask done and reported')
     return resultpath
 
 
