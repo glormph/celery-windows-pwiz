@@ -192,6 +192,8 @@ def assign_inputs_tools(inputstore):
     qcparams['setnames'] = ' '.join(params['setnames'])
     if params['strippatterns'] is not None:
         qcparams['platepatterns'] = ' '.join(params['strippatterns'])
+    params['Process PSM table'] = {'fastadelim': params['fastadelim'],
+                                   'genefield': params['genefield']}
     params['msstitch QC'] = qcparams
     params['MS-GF+'] = get_msgf_inputs(params)
     params['Create nested list'] = {'batchsize': params['ppoolsize']}

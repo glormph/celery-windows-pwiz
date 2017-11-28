@@ -96,7 +96,7 @@ def get_parser():
     parser.add_argument('--ppool-ids', dest='perco_ids', nargs='+')
     parser.add_argument('--ppool-size', dest='ppoolsize', default=8)
     parser.add_argument('--fastadelim', dest='fastadelim', type=str)
-    parser.add_argument('--genefield', dest='genefield', type=int)
+    parser.add_argument('--genefield', dest='genefield', type=str, default='')
     parser.add_argument('--knownproteins', dest='knownpep_db')
     parser.add_argument('--decoyknownproteins', dest='knownpep_db_decoy')
     return parser
