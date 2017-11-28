@@ -364,6 +364,7 @@ def wait_for_completion(inputstore, gi):
                                     inputstore['output_dsets'].values()]:
         print('Datasets not ready yet, checking')
         workflow_ok = check_outputs_workflow_ok(gi, inputstore)
+        sleep(60)
     if workflow_ok:
         print('Datasets ready for downloading in history '
               '{}'.format(inputstore['history']))
