@@ -13,7 +13,7 @@ import workflow_starter as wfstarter
 def get_mzmls_from_dirs(sourcedirs):
     mzmls = []
     for path in sourcedirs:
-        mzmls.extend([{'folder': path, 'filename': fn}
+        mzmls.extend([{'storagefolder': path, 'filename': fn}
                       for fn in glob('{}/*.mzML'.format(path))])
     return mzmls
 
@@ -22,7 +22,7 @@ def get_mzmls_from_files(sourcefiles):
     mzmls = []
     for mzmlfile in sourcefiles:
         path, fn = os.path.split(mzmlfile)
-        mzmls.append({'folder': path, 'filename': fn})
+        mzmls.append({'storagefolder': path, 'filename': fn})
     return mzmls
 
 

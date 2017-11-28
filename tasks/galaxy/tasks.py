@@ -1,6 +1,7 @@
 import os
 import json
 import re
+import shutil
 import subprocess
 from time import sleep
 
@@ -10,8 +11,22 @@ from tasks.galaxy import galaxydata
 from celeryapp import app
 
 
+@app.task(queue=config.QUEUE_PROD_STAGE, bind=True)
+def stage_infile(self, inputstore, number):
+    rawdata = inputstore['raw'][number]
+    print('Staging {} to production'.format(rawdata['filename']))
+    src = os.path.join(config.GALAXY_STORAGE_MOUNTPATH, rawdata['storagefolder'],
+                       rawdata['filename'])
+    rawdata['stagefolder'] = os.path.join(config.PROD_STAGE_MOUNT,
+                                          inputstore['source_history'])
+    # FIXME try/except here
+    os.makedirs(rawdata['stagefolder'])
+    shutil.copy(src, os.path.join(rawdata['stagefolder'], rawdata['filename']))
+    return inputstore
+
+
 @app.task(queue=config.QUEUE_GALAXY_TOOLS, bind=True)
-def storage_copy_file(self, inputstore, number):
+def stage_copy_file(self, inputstore, number):
     """Inputstore will contain one raw file, and a galaxy history.
     Raw file will have a file_id which can be read by the DB"""
     rawdata = inputstore['raw'][number]
@@ -19,8 +34,7 @@ def storage_copy_file(self, inputstore, number):
           '{}'.format(rawdata['filename'], inputstore['source_history']))
     gi = get_galaxy_instance(inputstore)
     tool_inputs = {
-        'folder': os.path.join(config.GALAXY_STORAGE_MOUNTPATH,
-                               rawdata['folder']),
+        'folder': rawdata['stagefolder'],
         'filename': rawdata['filename'],
         'transfertype': inputstore['copy_or_link'],
         'dtype': 'mzml',
@@ -31,7 +45,7 @@ def storage_copy_file(self, inputstore, number):
         tool_inputs=tool_inputs)
     state = dset['jobs'][0]['state']
     while state in ['new', 'queued', 'running']:
-        sleep(10)
+        sleep(5)
         state = gi.jobs.show_job(dset['jobs'][0]['id'])['state']
     if state == 'ok':
         print('File {} imported'.format(rawdata['filename']))
