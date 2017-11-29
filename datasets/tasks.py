@@ -4,7 +4,6 @@ import shutil
 import requests
 import hashlib
 import subprocess
-from time import sleep
 from urllib.parse import urljoin
 
 from datasets import config
@@ -36,7 +35,7 @@ def update_db(url, postdata, msg=False):
 
 
 @app.task(bind=True, queue=config.QUEUE_STORAGE)
-def md5_check_arrived_file(self, fnpath, servershare):
+def get_md5(self, source_md5, sfid, fnpath, servershare):
     """This will run on remote in other repo so there is no need to be no code
     in here, the task is an empty shell with only the task name"""
     return True
@@ -101,33 +100,21 @@ def scp_storage(self, mzmlfile, sf_id, dsetdir, servershare, reporturl, failurl)
     dst = '{}@{}'.format(config.SCP_LOGIN, dstserver)
     try:
         subprocess.check_call([PSCP_LOC, '-i', config.PUTTYKEY, mzmlfile, dst])
-    except Exception as e:
-        fail_update_db(failurl, self.request.id)
-        raise
-    print('Copied file, checking MD5 remotely using nested task')
-    md5res = md5_check_arrived_file.delay(
-        os.path.join(dsetdir, os.path.basename(mzmlfile)).replace('\\', '/'), servershare)
-    while not md5res.ready():
-        sleep(30)
-    try:
-        dst_md5 = md5res.get()
     except Exception:
         fail_update_db(failurl, self.request.id)
+        os.remove(mzmlfile)
         raise
-    if not dst_md5 == mzml_md5:
-        print('Destination MD5 {} is not same as source MD5 {}. Retrying in 60 '
-              'seconds'.format(dst_md5, mzml_md5))
-        fail_update_db(failurl, self.request.id)
-        raise RuntimeError
-    postdata = {'sfid': sf_id, 'task': self.request.id, 'md5': dst_md5,
+    print('Copied file, checking MD5 remotely using nested task')
+    postdata = {'sfid': sf_id, 'task': self.request.id,
                 'client_id': config.APIKEY}
     url = urljoin(config.KANTELEHOST, reporturl)
     try:
         update_db(url, postdata)
     except RuntimeError:
-        self.retry()
+        self.retry(countdown=60)
     print('SCP copy done and removing local file {}'.format(mzmlfile))
     os.remove(mzmlfile)
+    return mzml_md5
 
 
 def copy_infile(remote_file):
