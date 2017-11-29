@@ -7,6 +7,7 @@ import subprocess
 from urllib.parse import urljoin
 
 from datasets import config
+from rawstatus.tasks import get_md5
 from celeryapp import app
 
 PROTEOWIZ_LOC = ('C:\Program Files\ProteoWizard\ProteoWizard '
@@ -32,13 +33,6 @@ def update_db(url, postdata, msg=False):
         msg = msg.format(e)
         print(msg)
         raise RuntimeError(msg)
-
-
-@app.task(bind=True, queue=config.QUEUE_STORAGE)
-def get_md5(self, source_md5, sfid, fnpath, servershare):
-    """This will run on remote in other repo so there is no need to be no code
-    in here, the task is an empty shell with only the task name"""
-    return True
 
 
 @app.task(queue=config.QUEUE_PWIZ1, bind=True)
