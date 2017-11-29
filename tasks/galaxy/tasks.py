@@ -43,10 +43,7 @@ def stage_copy_file(self, inputstore, number):
         inputstore['source_history'],
         'testtoolshed.g2.bx.psu.edu/repos/jorritb/lehtio_input_output/locallink/0.2',
         tool_inputs=tool_inputs)
-    state = dset['jobs'][0]['state']
-    while state in ['new', 'queued', 'running']:
-        sleep(5)
-        state = gi.jobs.show_job(dset['jobs'][0]['id'])['state']
+    state = wait_for_copyjob(dset, gi)
     if state == 'ok':
         print('File {} imported'.format(rawdata['filename']))
         rawdata['galaxy_id'] = dset['outputs'][0]['id']
@@ -88,7 +85,7 @@ def misc_files_copy(self, inputstore, filelist):
 def wait_for_copyjob(dset, gi):
     state = dset['jobs'][0]['state']
     while state in ['new', 'queued', 'running']:
-        sleep(10)
+        sleep(3)
         state = gi.jobs.show_job(dset['jobs'][0]['id'])['state']
     return state
 
