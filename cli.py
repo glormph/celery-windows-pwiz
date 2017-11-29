@@ -13,7 +13,7 @@ import workflow_starter as wfstarter
 def get_mzmls_from_dirs(sourcedirs):
     mzmls = []
     for path in sourcedirs:
-        mzmls.extend([{'folder': path, 'filename': fn}
+        mzmls.extend([{'storagefolder': path, 'filename': fn}
                       for fn in glob('{}/*.mzML'.format(path))])
     return mzmls
 
@@ -22,7 +22,7 @@ def get_mzmls_from_files(sourcefiles):
     mzmls = []
     for mzmlfile in sourcefiles:
         path, fn = os.path.split(mzmlfile)
-        mzmls.append({'folder': path, 'filename': fn})
+        mzmls.append({'storagefolder': path, 'filename': fn})
     return mzmls
 
 
@@ -96,7 +96,7 @@ def get_parser():
     parser.add_argument('--ppool-ids', dest='perco_ids', nargs='+')
     parser.add_argument('--ppool-size', dest='ppoolsize', default=8)
     parser.add_argument('--fastadelim', dest='fastadelim', type=str)
-    parser.add_argument('--genefield', dest='genefield', type=int)
+    parser.add_argument('--genefield', dest='genefield', type=str, default='')
     parser.add_argument('--knownproteins', dest='knownpep_db')
     parser.add_argument('--decoyknownproteins', dest='knownpep_db_decoy')
     return parser
