@@ -36,7 +36,7 @@ def update_db(url, postdata, msg=False):
 
 
 @app.task(queue=config.QUEUE_PWIZ1, bind=True)
-def convert_to_mzml(self, fn, fnpath, servershare, reporturl, failurl):
+def convert_to_mzml(self, fn, fnpath, sf_id, servershare, reporturl, failurl):
     fullpath = os.path.join(config.SHAREMAP[servershare], fnpath, fn)
     print('Received conversion command for file {0}'.format(fullpath))
     copy_infile(fullpath)
@@ -52,8 +52,8 @@ def convert_to_mzml(self, fn, fnpath, servershare, reporturl, failurl):
     else:
         subprocess_flags = 0
     infile = os.path.join(RAWDUMPS, os.path.basename(fullpath))
-    resultpath = os.path.join(
-        MZMLDUMPS, os.path.splitext(os.path.basename(fullpath))[0] + '.mzML')
+    outfile = os.path.splitext(os.path.basename(fullpath))[0] + '.mzML'
+    resultpath = os.path.join(MZMLDUMPS, outfile)
     command = [PROTEOWIZ_LOC, infile, '--filter', '"peakPicking true 2"',
                '--filter', '"precursorRefine"', '-o', MZMLDUMPS]
     process = subprocess.Popen(command, stdout=subprocess.PIPE,
@@ -72,7 +72,8 @@ def convert_to_mzml(self, fn, fnpath, servershare, reporturl, failurl):
         fail_update_db(failurl, self.request.id)
         raise
     cleanup_files(infile)
-    postdata = {'task': self.request.id, 'client_id': config.APIKEY}
+    postdata = {'task': self.request.id, 'filename': outfile,
+                'sfid': sf_id, 'client_id': config.APIKEY}
     url = urljoin(config.KANTELEHOST, reporturl)
     try:
         update_db(url, postdata)
