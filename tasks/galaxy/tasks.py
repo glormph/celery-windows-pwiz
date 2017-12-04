@@ -25,6 +25,18 @@ def stage_infile(self, inputstore, number):
     return inputstore
 
 
+@app.task(queue=config.QUEUE_PROD_STAGE, bind=True)
+def delete_staged_files(self, inputstore):
+    print('Deleting staged files')
+    stage = os.path.join(config.PROD_STAGE_MOUNT, inputstore['source_history'])
+    try:
+        shutil.rmtree(stage)
+    except:
+        print('Could not delete staged dir {}'.format(stage))
+        raise
+    return inputstore
+
+
 @app.task(queue=config.QUEUE_GALAXY_TOOLS, bind=True)
 def stage_copy_file(self, inputstore, number):
     """Inputstore will contain one raw file, and a galaxy history.
