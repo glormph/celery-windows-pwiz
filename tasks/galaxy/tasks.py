@@ -20,7 +20,10 @@ def stage_infile(self, inputstore, number):
     rawdata['stagefolder'] = os.path.join(config.PROD_STAGE_MOUNT,
                                           inputstore['source_history'])
     # FIXME try/except here
-    os.makedirs(rawdata['stagefolder'])
+    try:
+        os.makedirs(rawdata['stagefolder'])
+    except FileExistsError:
+        pass
     shutil.copy(src, os.path.join(rawdata['stagefolder'], rawdata['filename']))
     return inputstore
 
@@ -48,7 +51,7 @@ def stage_copy_file(self, inputstore, number):
     tool_inputs = {
         'folder': rawdata['stagefolder'],
         'filename': rawdata['filename'],
-        'transfertype': inputstore['copy_or_link'],
+        'transfertype': 'link',
         'dtype': 'mzml',
     }
     dset = gi.tools.run_tool(
