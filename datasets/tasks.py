@@ -40,7 +40,10 @@ def convert_to_mzml(self, fn, fnpath, outfile, sf_id, servershare, reporturl,
                     failurl):
     fullpath = os.path.join(config.SHAREMAP[servershare], fnpath, fn)
     print('Received conversion command for file {0}'.format(fullpath))
-    copy_infile(fullpath)
+    try:
+        copy_infile(fullpath)
+    except RuntimeError:
+        fail_update_db(failurl, self.request.id)
     if sys.platform.startswith("win"):
         # Don't display the Windows GPF dialog if the invoked program dies.
         # See comp.os.ms-windows.programmer.win32
@@ -79,7 +82,7 @@ def convert_to_mzml(self, fn, fnpath, outfile, sf_id, servershare, reporturl,
         update_db(url, postdata)
     except RuntimeError:
         self.retry()
-    print('Mzmml convert subtask done and reported')
+    print('Mzml convert subtask done and reported')
     return resultpath
 
 
