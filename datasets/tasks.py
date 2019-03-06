@@ -62,7 +62,11 @@ def convert_to_mzml(self, fn, fnpath, outfile, sf_id, servershare, reporturl,
     process = subprocess.Popen(command, stdout=subprocess.PIPE,
                                stderr=subprocess.PIPE,
                                creationflags=subprocess_flags)
-    (stdout, stderr) = process.communicate()
+    try:
+        (stdout, stderr) = process.communicate(timeout=3600)
+    except subprocess.TimeoutExpired:
+        process.terminate()
+        self.retry()
     if process.returncode != 0 or not os.path.exists(resultpath):
         print('Error in running msconvert:\n{}'.format(stdout))
         fail_update_db(failurl, self.request.id)
