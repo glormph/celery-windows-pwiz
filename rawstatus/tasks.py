@@ -1,4 +1,4 @@
-from datasets import config
+import config
 from celeryapp import app
 
 

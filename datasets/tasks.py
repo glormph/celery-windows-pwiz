@@ -6,12 +6,12 @@ import hashlib
 import subprocess
 from urllib.parse import urljoin
 
-from datasets import config
+import config
 from rawstatus.tasks import get_md5
 from celeryapp import app
 
 PROTEOWIZ_LOC = ('C:\Program Files\ProteoWizard\ProteoWizard '
-                 '3.0.11336\msconvert.exe')
+                 '3.0.11392\msconvert.exe')
 PSCP_LOC = ('C:\Program Files\PuTTY\pscp.exe')
 RAWDUMPS = 'C:\\rawdump'
 MZMLDUMPS = 'C:\\mzmldump'

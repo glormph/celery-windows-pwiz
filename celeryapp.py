@@ -1,5 +1,5 @@
 from celery import Celery
-from tasks import config
+import config
 
 
 app = Celery('proteomics-tasks')
@@ -11,4 +11,5 @@ app.conf.update(
     accept_content=[config.CELERY_TASK_SERIALIZER],
     result_backend=config.CELERY_RESULT_BACKEND,
     worker_prefetch_multiplier=1,
+    task_acks_late=True,
 )
