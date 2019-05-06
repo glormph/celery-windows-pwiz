@@ -5,6 +5,7 @@ import requests
 import hashlib
 import subprocess
 from urllib.parse import urljoin
+from celery.exceptions import MaxRetriesExceededError
 
 import config
 from rawstatus.tasks import get_md5
@@ -68,16 +69,22 @@ def convert_to_mzml(self, fn, fnpath, outfile, sf_id, servershare, reporturl,
         process.terminate()
         self.retry()
     if process.returncode != 0 or not os.path.exists(resultpath):
-        print('Error in running msconvert:\n{}'.format(stdout))
-        fail_update_db(failurl, self.request.id)
-        raise RuntimeError
+        try:
+            self.retry()
+        except MaxRetriesExceededError:
+            print('Error in running msconvert:\n{}'.format(stdout))
+            fail_update_db(failurl, self.request.id)
+            raise RuntimeError
     try:
         check_mzml_integrity(resultpath)
     except RuntimeError as e:
-        print('Integrity check failed', e)
-        cleanup_files(infile, resultpath)
-        fail_update_db(failurl, self.request.id)
-        raise
+        try:
+            self.retry()
+        except MaxRetriesExceededError:
+            print('Integrity check failed', e)
+            cleanup_files(infile, resultpath)
+            fail_update_db(failurl, self.request.id)
+            raise RuntimeError('Integrity check failed multiple times')
     cleanup_files(infile)
     postdata = {'task': self.request.id, 'filename': outfile,
                 'sfid': sf_id, 'client_id': config.APIKEY}
