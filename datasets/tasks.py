@@ -67,22 +67,32 @@ def convert_to_mzml(self, fn, fnpath, outfile, sf_id, servershare, reporturl,
         (stdout, stderr) = process.communicate(timeout=3600)
     except subprocess.TimeoutExpired:
         process.terminate()
-        self.retry()
-    if process.returncode != 0 or not os.path.exists(resultpath):
+        cleanup_files(infile, resultpath)
         try:
+            print('Conversion spent more than 1 hour, aborted and queueing for retry')
             self.retry()
         except MaxRetriesExceededError:
-            print('Error in running msconvert:\n{}'.format(stdout))
+            print('Too many retries. Error in running msconvert:\n{}'.format(stdout))
+            fail_update_db(failurl, self.request.id)
+            raise RuntimeError
+    if process.returncode != 0 or not os.path.exists(resultpath):
+        cleanup_files(infile, resultpath)
+        try:
+            print('Conversion failed, queueing for retry')
+            self.retry()
+        except MaxRetriesExceededError:
+            print('Too many retries. Error in running msconvert:\n{}'.format(stdout))
             fail_update_db(failurl, self.request.id)
             raise RuntimeError
     try:
         check_mzml_integrity(resultpath)
     except RuntimeError as e:
+        cleanup_files(infile, resultpath)
         try:
+            print('Converted file is not correct, queuing for retry')
             self.retry()
         except MaxRetriesExceededError:
-            print('Integrity check failed', e)
-            cleanup_files(infile, resultpath)
+            print('Too many retries. Integrity check failed', e)
             fail_update_db(failurl, self.request.id)
             raise RuntimeError('Integrity check failed multiple times')
     cleanup_files(infile)
@@ -157,13 +167,15 @@ def check_mzml_integrity(mzmlfile):
         firstlines = fp.readlines(100)
         fp.seek(-100, 2)
         lastlines = fp.readlines()
-    if ('indexedmzML' in ','.join([str(x) for x in firstlines]) and
-            'indexedmzML' in ','.join([str(x) for x in lastlines])):
+    first, last = ('indexedmzML' in ','.join([str(x) for x in firstlines]),
+                   'indexedmzML' in ','.join([str(x) for x in lastlines]))
+    if first and last:
         return True
     else:
+        print('Problem, string "indexedmzML" not found in both first and last lines of mzML'
+              ', Result: first lines: {}, last lines: {}'.format(first, last))
         raise RuntimeError('WARNING, conversion did not result in mzML file '
-                           'with proper head and tail! Retrying conversion.')
-    # FIXME maybe implement iterparsing if this is not enough.
+                           'with proper head and tail!')
 
 
 def cleanup_files(*files):
