@@ -1,10 +1,8 @@
 import os
 
 QUEUE_STORAGE = 'mv_md5_storage'
-QUEUE_PWIZ1 = 'pwiz1'
-QUEUE_PWIZ2 = 'pwiz2'
-QUEUE_PWIZ1_OUT = 'proteowiz1_out'
-QUEUE_PWIZ2_OUT = 'proteowiz2_out'
+QUEUE_PWIZ = os.environ.get('PWIZ_QUEUE')
+QUEUE_PWIZ_OUT = os.environ.get('PWIZ_OUT_QUEUE')
 
 CERTFILE = os.environ.get('KANTELECERT')
 PROTOCOL = 'https://'

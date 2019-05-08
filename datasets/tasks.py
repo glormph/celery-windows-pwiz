@@ -36,7 +36,7 @@ def update_db(url, postdata, msg=False):
         raise RuntimeError(msg)
 
 
-@app.task(queue=config.QUEUE_PWIZ1, bind=True)
+@app.task(queue=config.QUEUE_PWIZ, bind=True)
 def convert_to_mzml(self, fn, fnpath, outfile, sf_id, servershare, reporturl,
                     failurl):
     fullpath = os.path.join(config.SHAREMAP[servershare], fnpath, fn)
@@ -107,7 +107,7 @@ def convert_to_mzml(self, fn, fnpath, outfile, sf_id, servershare, reporturl,
     return resultpath
 
 
-@app.task(queue=config.QUEUE_PWIZ1_OUT, bind=True)
+@app.task(queue=config.QUEUE_PWIZ_OUT, bind=True)
 def scp_storage(self, mzmlfile, sf_id, dsetdir, servershare, reporturl, failurl):
     print('Got copy-to-storage command, calculating MD5 for file '
           '{}'.format(mzmlfile))
