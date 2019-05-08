@@ -12,7 +12,7 @@ from rawstatus.tasks import get_md5
 from celeryapp import app
 
 PROTEOWIZ_LOC = ('C:\Program Files\ProteoWizard\ProteoWizard '
-                 '3.0.11392\msconvert.exe')
+                 '3.0.19127.a8f2dc212\msconvert.exe')
 PSCP_LOC = ('C:\Program Files\PuTTY\pscp.exe')
 RAWDUMPS = 'C:\\rawdump'
 MZMLDUMPS = 'C:\\mzmldump'
