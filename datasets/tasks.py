@@ -4,6 +4,7 @@ import shutil
 import requests
 import hashlib
 import subprocess
+import psutil
 from urllib.parse import urljoin
 from celery.exceptions import MaxRetriesExceededError
 
@@ -66,7 +67,13 @@ def convert_to_mzml(self, fn, fnpath, outfile, sf_id, servershare, reporturl,
     try:
         (stdout, stderr) = process.communicate(timeout=3600)
     except subprocess.TimeoutExpired:
-        process.terminate()
+        parent = psutil.Process(process.pid)
+        children = parent.children(recursive=True)
+        for child in children:
+            child.kill()
+        dead, alive = psutil.wait_procs(children, timeout=5)
+        parent.kill()
+        parent.wait(5)
         cleanup_files(infile, resultpath)
         try:
             print('Conversion spent more than 1 hour, aborted and queueing for retry')
