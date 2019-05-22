@@ -79,7 +79,7 @@ def convert_to_mzml(self, fn, fnpath, outfile, sf_id, servershare, reporturl,
             print('Conversion spent more than 1 hour, aborted and queueing for retry')
             self.retry()
         except MaxRetriesExceededError:
-            print('Too many retries. Error in running msconvert:\n{}'.format(stdout))
+            print('Too many retries for this task, set to error')
             fail_update_db(failurl, self.request.id)
             raise RuntimeError
     if process.returncode != 0 or not os.path.exists(resultpath):
