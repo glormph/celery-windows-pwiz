@@ -127,9 +127,14 @@ def scp_storage(self, mzmlfile, sf_id, dsetdir, servershare, reporturl, failurl)
     try:
         subprocess.check_call([PSCP_LOC, '-i', config.PUTTYKEY, mzmlfile, dst])
     except Exception:
-        fail_update_db(failurl, self.request.id)
-        os.remove(mzmlfile)
-        raise
+        try:
+            print('Secure copy to server failed, retrying file {}'.format(mzmlfile))
+            self.retry()
+        except MaxRetriesExceededError:
+            print('Secure copy file {} to server failed multiple times, set to error'.format(mzmlfile))
+            fail_update_db(failurl, self.request.id)
+            os.remove(mzmlfile)
+            raise
     print('Copied file, checking MD5 remotely using nested task')
     postdata = {'sfid': sf_id, 'task': self.request.id,
                 'client_id': config.APIKEY}
