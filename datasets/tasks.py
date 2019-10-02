@@ -82,9 +82,9 @@ def convert_to_mzml(self, fn, fnpath, outfile, sf_id, servershare, reporturl,
             fail_update_db(failurl, self.request.id)
             raise RuntimeError
     if process.returncode != 0 or not os.path.exists(resultpath):
+        print('Conversion failed, queueing for retry')
         cleanup_files(infile, resultpath)
         try:
-            print('Conversion failed, queueing for retry')
             self.retry()
         except MaxRetriesExceededError:
             print('Too many retries. Error in running msconvert:\n{}'.format(stdout))
@@ -149,7 +149,7 @@ def scp_storage(self, mzmlfile, sf_id, dsetdir, servershare, reporturl, failurl)
 
 def copy_infile(remote_file):
     dst = os.path.join(RAWDUMPS, os.path.basename(remote_file))
-    print('copying file to local dumpdir')
+    print('copying file {} to local dumpdir {}'.format(remote_file, dst))
     try:
         subprocess.check_call(['scp', '-i', config.SSHKEY, remote_file, dst])
     except Exception as e:
