@@ -4,6 +4,7 @@ import requests
 import hashlib
 import subprocess
 import psutil
+import platform
 from urllib.parse import urljoin
 from celery.exceptions import MaxRetriesExceededError
 
@@ -15,6 +16,12 @@ PROTEOWIZ_LOC = ('C:\Program Files\ProteoWizard\ProteoWizard '
                  '3.0.19127.a8f2dc212\msconvert.exe')
 RAWDUMPS = 'C:\\rawdump'
 MZMLDUMPS = 'C:\\mzmldump'
+
+
+def get_scp():
+    system32dir = os.path.join(os.environ['SystemRoot'], 'SysNative' if
+                               platform.architecture()[0] == '32bit' else 'System32')
+    return os.path.join(system32dir, 'OpenSSH', 'scp.exe')
 
 
 def fail_update_db(failurl, task_id):
@@ -38,9 +45,9 @@ def update_db(url, postdata, msg=False):
 @app.task(queue=config.QUEUE_PWIZ, bind=True)
 def convert_to_mzml(self, fn, fnpath, outfile, sf_id, servershare, reporturl,
                     failurl):
-    print('Received conversion command for file {0}'.format(fullpath))
     fullpath = os.path.join(config.STORAGESERVER, fnpath, fn).replace('\\', '/')
     fullpath = '{}@{}'.format(config.SCP_LOGIN, fullpath)
+    print('Received conversion command for file {0}'.format(fullpath))
     try:
         copy_infile(fullpath)
     except RuntimeError:
@@ -56,7 +63,7 @@ def convert_to_mzml(self, fn, fnpath, outfile, sf_id, servershare, reporturl,
         subprocess_flags = 0x8000000  # win32con.CREATE_NO_WINDOW?
     else:
         subprocess_flags = 0
-    infile = os.path.join(RAWDUMPS, os.path.basename(fullpath))
+    infile = os.path.join(RAWDUMPS, fn)
     resultpath = os.path.join(MZMLDUMPS, outfile)
     command = [PROTEOWIZ_LOC, infile, '--filter', '"peakPicking true 2"',
                '--filter', '"precursorRefine"', '-o', MZMLDUMPS]
@@ -124,7 +131,7 @@ def scp_storage(self, mzmlfile, sf_id, dsetdir, servershare, reporturl, failurl)
     dstserver = os.path.join(storeserver, dsetdir).replace('\\', '/')
     dst = '{}@{}'.format(config.SCP_LOGIN, dstserver)
     try:
-        subprocess.check_call(['scp', '-i', config.SSHKEY, mzmlfile, dst])
+        subprocess.check_call([get_scp(), '-i', config.SSHKEY, mzmlfile, dst])
     except Exception:
         try:
             print('Secure copy to server failed, retrying file {}'.format(mzmlfile))
@@ -151,7 +158,7 @@ def copy_infile(remote_file):
     dst = os.path.join(RAWDUMPS, os.path.basename(remote_file))
     print('copying file {} to local dumpdir {}'.format(remote_file, dst))
     try:
-        subprocess.check_call(['scp', '-i', config.SSHKEY, remote_file, dst])
+        subprocess.check_call([get_scp(), '-i', config.SSHKEY, remote_file, dst])
     except Exception as e:
         try:
             cleanup_files(dst)
