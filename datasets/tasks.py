@@ -1,6 +1,5 @@
 import os
 import sys
-import shutil
 import requests
 import hashlib
 import subprocess
@@ -14,7 +13,6 @@ from celeryapp import app
 
 PROTEOWIZ_LOC = ('C:\Program Files\ProteoWizard\ProteoWizard '
                  '3.0.19127.a8f2dc212\msconvert.exe')
-PSCP_LOC = ('C:\Program Files\PuTTY\pscp.exe')
 RAWDUMPS = 'C:\\rawdump'
 MZMLDUMPS = 'C:\\mzmldump'
 
@@ -40,8 +38,9 @@ def update_db(url, postdata, msg=False):
 @app.task(queue=config.QUEUE_PWIZ, bind=True)
 def convert_to_mzml(self, fn, fnpath, outfile, sf_id, servershare, reporturl,
                     failurl):
-    fullpath = os.path.join(config.SHAREMAP[servershare], fnpath, fn)
     print('Received conversion command for file {0}'.format(fullpath))
+    fullpath = os.path.join(config.STORAGESERVER, fnpath, fn).replace('\\', '/')
+    fullpath = '{}@{}'.format(config.SCP_LOGIN, fullpath)
     try:
         copy_infile(fullpath)
     except RuntimeError:
@@ -125,7 +124,7 @@ def scp_storage(self, mzmlfile, sf_id, dsetdir, servershare, reporturl, failurl)
     dstserver = os.path.join(storeserver, dsetdir).replace('\\', '/')
     dst = '{}@{}'.format(config.SCP_LOGIN, dstserver)
     try:
-        subprocess.check_call([PSCP_LOC, '-i', config.PUTTYKEY, mzmlfile, dst])
+        subprocess.check_call(['scp', '-i', config.SSHKEY, mzmlfile, dst])
     except Exception:
         try:
             print('Secure copy to server failed, retrying file {}'.format(mzmlfile))
@@ -152,7 +151,7 @@ def copy_infile(remote_file):
     dst = os.path.join(RAWDUMPS, os.path.basename(remote_file))
     print('copying file to local dumpdir')
     try:
-        shutil.copy(remote_file, dst)
+        subprocess.check_call(['scp', '-i', config.SSHKEY, remote_file, dst])
     except Exception as e:
         try:
             cleanup_files(dst)
