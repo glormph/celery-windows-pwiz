@@ -10,6 +10,7 @@ KANTELEHOST = '{}{}'.format(PROTOCOL, os.environ.get('KANTELEHOST'))
 APIKEY = os.environ.get('APIKEY')
 SCP_LOGIN = os.environ.get('SCP_LOGIN')
 SSHKEY = os.environ.get('SSHKEY')
+KNOWN_HOSTS = os.environ.get('KNOWN_HOSTS')
 STORAGESERVER = os.environ.get('STORAGESERVER')
 
 RABBIT_HOST = os.environ.get('RABBITHOST')

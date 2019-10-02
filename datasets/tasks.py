@@ -21,7 +21,11 @@ MZMLDUMPS = 'C:\\mzmldump'
 def get_scp():
     system32dir = os.path.join(os.environ['SystemRoot'], 'SysNative' if
                                platform.architecture()[0] == '32bit' else 'System32')
-    return os.path.join(system32dir, 'OpenSSH', 'scp.exe')
+    scp = [os.path.join(system32dir, 'OpenSSH', 'scp.exe'),
+            '-i', config.SSHKEY]
+    if config.KNOWN_HOSTS is not None:
+        scp.extend(['-o', 'UserKnownHostsFile={}'.format(config.KNOWN_HOSTS)])
+    return scp
 
 
 def fail_update_db(failurl, task_id):
@@ -131,7 +135,7 @@ def scp_storage(self, mzmlfile, sf_id, dsetdir, servershare, reporturl, failurl)
     dstserver = os.path.join(storeserver, dsetdir).replace('\\', '/')
     dst = '{}@{}'.format(config.SCP_LOGIN, dstserver)
     try:
-        subprocess.check_call([get_scp(), '-i', config.SSHKEY, mzmlfile, dst])
+        subprocess.check_call(get_scp() + [mzmlfile, dst])
     except Exception:
         try:
             print('Secure copy to server failed, retrying file {}'.format(mzmlfile))
@@ -158,7 +162,7 @@ def copy_infile(remote_file):
     dst = os.path.join(RAWDUMPS, os.path.basename(remote_file))
     print('copying file {} to local dumpdir {}'.format(remote_file, dst))
     try:
-        subprocess.check_call([get_scp(), '-i', config.SSHKEY, remote_file, dst])
+        subprocess.check_call(get_scp() + [remote_file, dst])
     except Exception as e:
         try:
             cleanup_files(dst)
