@@ -12,6 +12,8 @@ SCP_LOGIN = os.environ.get('SCP_LOGIN')
 SSHKEY = os.environ.get('SSHKEY')
 KNOWN_HOSTS = os.environ.get('KNOWN_HOSTS')
 STORAGESERVER = os.environ.get('STORAGESERVER')
+STORAGEBASE = os.environ.get('STORAGEBASE')
+
 
 RABBIT_HOST = os.environ.get('RABBITHOST')
 RABBIT_USER = 'kantele'

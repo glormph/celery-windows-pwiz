@@ -49,8 +49,8 @@ def update_db(url, postdata, msg=False):
 @app.task(queue=config.QUEUE_PWIZ, bind=True)
 def convert_to_mzml(self, fn, fnpath, outfile, sf_id, servershare, reporturl,
                     failurl):
-    fullpath = os.path.join(config.STORAGESERVER, fnpath, fn).replace('\\', '/')
-    fullpath = '{}@{}'.format(config.SCP_LOGIN, fullpath)
+    fullpath = "{}@{}:'{}'".format(config.SCP_LOGIN, config.STORAGESERVER,
+            os.path.join(config.STORAGEBASE, fnpath, fn)).replace('\\', '/')
     print('Received conversion command for file {0}'.format(fullpath))
     try:
         copy_infile(fullpath)
@@ -133,7 +133,8 @@ def scp_storage(self, mzmlfile, sf_id, dsetdir, servershare, reporturl, failurl)
         mzmlfile, mzml_md5))
     storeserver = config.STORAGESERVER
     dstserver = os.path.join(storeserver, dsetdir).replace('\\', '/')
-    dst = '{}@{}'.format(config.SCP_LOGIN, dstserver)
+    dst = "{}@{}:'{}'".format(config.SCP_LOGIN, config.STORAGESERVER,
+            os.path.join(config.STORAGEBASE, dsetdir).replace('\\', '/'))
     try:
         subprocess.check_call(get_scp() + [mzmlfile, dst])
     except Exception:
@@ -159,7 +160,7 @@ def scp_storage(self, mzmlfile, sf_id, dsetdir, servershare, reporturl, failurl)
 
 
 def copy_infile(remote_file):
-    dst = os.path.join(RAWDUMPS, os.path.basename(remote_file))
+    dst = os.path.join(RAWDUMPS, os.path.basename(remote_file).replace("'", ''))
     print('copying file {} to local dumpdir {}'.format(remote_file, dst))
     try:
         subprocess.check_call(get_scp() + [remote_file, dst])
