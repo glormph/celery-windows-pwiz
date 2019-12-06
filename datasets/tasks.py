@@ -22,7 +22,7 @@ def get_scp():
     system32dir = os.path.join(os.environ['SystemRoot'], 'SysNative' if
                                platform.architecture()[0] == '32bit' else 'System32')
     scp = [os.path.join(system32dir, 'OpenSSH', 'scp.exe'),
-            '-i', config.SSHKEY]
+            '-ri', config.SSHKEY]
     if config.KNOWN_HOSTS is not None:
         scp.extend(['-o', 'UserKnownHostsFile={}'.format(config.KNOWN_HOSTS)])
     return scp
