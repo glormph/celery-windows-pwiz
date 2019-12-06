@@ -96,7 +96,7 @@ def convert_to_mzml(self, fn, fnpath, outfile, sf_id, servershare, reporturl,
         print('Conversion failed, queueing for retry')
         cleanup_files(infile, resultpath)
         try:
-            self.retry()
+            raise self.retry()
         except MaxRetriesExceededError:
             print('Too many retries. Error in running msconvert:\n{}'.format(stdout))
             fail_update_db(failurl, self.request.id)
