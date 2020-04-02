@@ -47,8 +47,7 @@ def update_db(url, postdata, msg=False):
 
 
 @app.task(queue=config.QUEUE_PWIZ, bind=True)
-def convert_to_mzml(self, fn, fnpath, outfile, sf_id, servershare, reporturl,
-                    failurl):
+def convert_to_mzml(self, fn, fnpath, outfile, sf_id, servershare, filtopts, reporturl, failurl):
     fullpath = "{}@{}:'{}'".format(config.SCP_LOGIN, config.STORAGESERVER,
             os.path.join(config.STORAGEBASE, fnpath, fn)).replace('\\', '/')
     print('Received conversion command for file {0}'.format(fullpath))
@@ -69,8 +68,7 @@ def convert_to_mzml(self, fn, fnpath, outfile, sf_id, servershare, reporturl,
         subprocess_flags = 0
     infile = os.path.join(RAWDUMPS, fn)
     resultpath = os.path.join(MZMLDUMPS, outfile)
-    command = [PROTEOWIZ_LOC, infile, '--filter', '"peakPicking true 2"',
-               '--filter', '"precursorRefine"', '-o', MZMLDUMPS]
+    command = [PROTEOWIZ_LOC, infile] + filtopts + ['-o', MZMLDUMPS]
     process = subprocess.Popen(command, stdout=subprocess.PIPE,
                                stderr=subprocess.PIPE,
                                creationflags=subprocess_flags)
